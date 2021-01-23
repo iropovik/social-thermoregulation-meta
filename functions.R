@@ -24,6 +24,7 @@ if (test == "one-tailed") {
 # Needs specific naming of ES, variances and data on clustering; yi = yi, vi = vi, study, result
 # Using n/(n-p) small-sample correction for RVE SEs
 rmaCustom <- function(data = NA, robust = TRUE){
+  data <- data %>% filter(useMA == 1)
   viMatrix <- impute_covariance_matrix(data$vi, cluster = data$study, r = rho, smooth_vi = TRUE)
   rmaObjectModBasedSE <- rma.mv(yi = yi, V = viMatrix, data = data, method = "REML", random = ~ 1|study/result, sparse = TRUE)
   rmaObject <- robust.rma.mv(rmaObjectModBasedSE, cluster = data$study)
@@ -85,9 +86,9 @@ pcurvePerm <- function(data, esEstimate = FALSE, plot = FALSE, nIterations = nIt
   resultIDpcurve <- list(NA)
   resultPcurve <- matrix(ncol = 11, nrow = nIterationsPcurve)
   for(i in 1:nIterationsPcurve){
-    datPcurve <- data[!duplicated.random(data$study) & data$focalVariable == 1,]
+    datPcurve <- data[!duplicated.random(data$study) & data$focalVariable == 1 & !is.na(data$p),]
     metaPcurve <- metagen(TE = yi, seTE = sqrt(vi), n.e = ni, data = datPcurve)
-    modelPcurve <- tryCatch(pcurveMod(metaPcurve, effect.estimation = esEstimate, N = datPcurve$n.e, plot = FALSE), 
+    modelPcurve <- tryCatch(pcurveMod(metaPcurve, effect.estimation = esEstimate, N = datPcurve$ni, plot = plot), 
                             error = function(e) NULL)
     if(is.null(modelPcurve)){
       next
@@ -106,6 +107,7 @@ pcurvePerm <- function(data, esEstimate = FALSE, plot = FALSE, nIterations = nIt
 # Multiple-parameter selection models -------------------------------------
 # 4/3-parameter selection model (4PSM/3PSM)
 selectionModel <- function(data, minPvalues = 4){
+  data <- data %>% filter(useMA == 1)
   mydat <<- data[!duplicated.random(data$study) & data$focalVariable == 1,]
   res <- rma(yi, vi, data = mydat)
   fourFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, .5, 1)),
@@ -135,6 +137,7 @@ selectionModel <- function(data, minPvalues = 4){
 #PET-PEESE with 4/3PSM as the conditional estimator instead of PET. 
 # Also implemented the modified sample-size based estimator (see https://www.jepusto.com/pet-peese-performance/).
 petPeese <- function(data, nBased = TRUE, selModAsCondEst = TRUE){  # if nBased = TRUE, use the sample-size-based estimator, if FALSE, use the ordinary SE/var. If selModAsCondEst = TRUE, use the selection model as conditional estimator, otherwise use PET.
+  data <- data %>% filter(useMA == 1)
   viMatrix <- impute_covariance_matrix(data$vi, cluster = data$study, r = rho, smooth_vi = TRUE)  # compute the covariance matrix for the CHE working model
   
   if(nBased == TRUE){
@@ -223,6 +226,7 @@ waapWLS <- function(yi, vi, est = c("WAAP-WLS"), long = FALSE) {
 # Median power for detecting SESOI and bias-corrected parameter estimates --------------
 
 powerEst <- function(data = NA){
+  data <- data %>% filter(useMA == 1)
   powerPEESE <- NA
   powerSM <- NA
   peeseEst <- petPeese(data)[1]
@@ -234,8 +238,8 @@ powerEst <- function(data = NA){
   c("Median power for detecting a SESOI of d = .20" = power20sd,
     "Median power for detecting a SESOI of d = .50" = power50sd,
     "Median power for detecting a SESOI of d = .70" = power70sd,
-    "Median power for detecting PET-PEESE estimate" = powerPEESEresult, 
-    "Median power for detecting 4/3PSM estimate" = powerSMresult)
+    "Median power for detecting PET-PEESE estimate" = ifelse(peeseEst > 0, powerPEESEresult, paste("ES estimate in the opposite direction")), 
+    "Median power for detecting 4/3PSM estimate" = ifelse(resultSM["est"] > 0, powerSMresult, paste("ES estimate in the opposite direction")))
 }
 
 # Publication bias summary function-------------------------------
@@ -257,7 +261,8 @@ bias <- function(data = NA, rmaObject = NA){
   petPeeseOut <- petPeese(data)
   
   # WAAP-WLS
-  waapWLSout <- data %$% waapWLS(yi, vi)
+
+  waapWLSout <- data %>% filter(useMA == 1) %$% waapWLS(yi, vi)
   waapWLSout[1, 9:10] <- waapWLSout[2, 9:10]
   waapWLSout <- waapWLSout[1,]
   
@@ -267,7 +272,8 @@ bias <- function(data = NA, rmaObject = NA){
   # p-uniform* (van Aert & van Assen, 2021)
   resultPuniform <- matrix(ncol = 4, nrow = nIterations)
   for(i in 1:nIterations){
-    modelPuniform <- data[!duplicated.random(data$study) & data$focalVariable == 1,] %$% puni_star(yi = yi, vi = vi, alpha = alpha, side = side, method = "ML")
+    data <- data %>% filter(useMA == 1)
+    modelPuniform <- data[!duplicated.random(data$study) & data$focalVariable == 1 & !is.na(data$vi),] %$% puni_star(yi = yi, vi = vi, alpha = alpha, side = side, method = "ML")
     resultPuniform[i,] <- c("est" = modelPuniform[["est"]], "ciLB" = modelPuniform[["ci.lb"]], "ciUB" = modelPuniform[["ci.ub"]], "p-value" = modelPuniform[["pval.0"]])
   }
   colnames(resultPuniform) <- c("est", "ciLB", "ciUB", "pvalue")
@@ -291,8 +297,14 @@ maResults <- function(rmaObject = NA, data = NA, bias = T){
     "RVE SEs with Satterthwaite small-sample correction" = conf_int(rmaObject[[2]], vcov = "CR2", cluster = data$study),
     "Prediction interval" = pi95(rmaObject),
     "Heterogeneity" = heterogeneity(rmaObject),
-    "Proportion of significant results" = propSig(data$p),
-    "Publication bias" = if(bias ==T) {bias(data, rmaObject)} else {paste("Publication bias correction not carried out")},
+    "Proportion of significant results" = propSig(data[data$useMA == 1,]$p),
+    "Publication bias" = if(bias ==T) {bias(data, rmaObject)} else {paste("Publication bias corrections not carried out")},
+    "Power for detecting SESOI and bias-corrected parameter estimates" = powerEst(data))
+}
+
+biasResults <- function(rmaObject = NA, data = NA){
+  list(
+    "Publication bias" = bias(data, rmaObject),
     "Power for detecting SESOI and bias-corrected parameter estimates" = powerEst(data))
 }
 
@@ -338,10 +350,6 @@ tTestSummary <- function(mean1, mean2, sd1, sd2, n1, n2, withinSS = FALSE)
     names(out) <- c("Difference in means", "SE", "t-statistic", "p-value")
     return(out)
   }
-   
-  
-  
-  
 }
 
 # Random selection of effects ---------------------------------------------

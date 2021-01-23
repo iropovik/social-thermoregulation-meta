@@ -13,9 +13,6 @@
 
 #+ setup, include = FALSE
 knitr::opts_chunk$set(echo=FALSE, warning = FALSE)
-# check with Alessandro if overall RoB was scored correctly
-# subgroup analysis A: if !is.na(affect) | !is.na(stressComponentType)) = 1; if !is.na(affectiveConsequencesStress) = 2
-# subgroup analysis B: if (stressComponentType %in% c(1:4) | !is.na(affect)) ~ 1; stressComponentType = 5 ~ 2; stressComponentType = 6 ~ 3
 
 rm(list = ls())
 
@@ -50,79 +47,44 @@ source("pcurvePlotOption.R")
 source("esConversion.R")
 
 # GRIM & GRIMMER Test -----------------------------------------------------
-grimAndGrimmer(dat)
+# grimAndGrimmer(dat)
 
 # Meta-analysis -----------------------------------------------------------
 
 # Subset
-dataMind <- dat[dat$strategy == 1 & !is.na(dat$yi),]
-dataBio <- dat[dat$strategy == 2 & !is.na(dat$yi),]
-dataMind <- dataMind %>% filter_all(any_vars(!is.na(.)))
-dataBio <- dataBio %>% filter_all(any_vars(!is.na(.)))
+# Into esConversion
+datMood <- dat %>% filter(positiveNegativeAffect == 1)
+data <- dat %>% filter(positiveNegativeAffect != 1)
 
-#'# Meta-analysis results
+data$effectCompPriming <- ifelse((data$effectTypeNeitherCompensatoryPrimingBoth == 0) | (data$effectTypeNeitherCompensatoryPrimingBoth == 3), yes = NA, no = data$effectTypeNeitherCompensatoryPrimingBoth)
+data$effectCompPriming <- relevel(factor(data$effectCompPriming), ref="1")
 
-#' **RMA results with model-based SEs**
-#'k = number of studies; sqrt in "Variance components" = tau, the standard deviation of true effects; estimate in "Model results" = naive MA estimate
-#'
-#' **RVE SEs with Satterthwaite small-sample correction**
-#' Estimate based on a multilevel RE model with constant sampling correlation model (CHE - correlated hierarchical effects - working model) (Pustejovsky & Tipton, 2020; https://osf.io/preprints/metaarxiv/vyfcj/). 
-#' Interpretation of naive-meta-analysis should be based on these estimates.
-#'
-#' **Prediction interval**
-#' Shows the expected range of true effects in similar studies.
-#' As an approximation, in 95% of cases the true effect in a new *published* study can be expected to fall between PI LB and PI UB.
-#' Note that these are non-adjusted estimates. An unbiased newly conducted study will more likely fall in an interval centered around bias-adjusted estimate with a wider CI width.
-#'
-#' **Heterogeneity**
-#' Tau can be interpreted as the total amount of heterogeneity in the true effects. 
-#' I^2$ represents the ratio of true heterogeneity to total variance across the observed effect estimates. Estimates calculated by 2 approaches are reported.
-#' This is followed by separate estimates of between- and within-cluster heterogeneity and estimated intra-class correlation of underlying true effects.
-#' 
-#' **Proportion of significant results**
-#' What proportion of effects were statistically at the alpha level of .05.
-#' 
-#' **ES-precision correlation**
-#' Kendalls's correlation between the ES and precision
-#' 
-#' **4/3PSM**
-#' Applies a permutation-based, step-function 4-parameter selection model (one-tailed p-value steps = c(.025, .5, 1)). 
-#' Falls back to 3-parameter selection model if at least one of the three p-value intervals contains less than 4 p-values.
-#' 
-#' pvalue = p-value testing H0 that the effect is zero. ciLB and ciUB are lower and upper bound of the CI. k = number of studies. steps = 3 means that the 4PSM was applied, 2 means that the 3PSM was applied.
-#' 
-#' **PET-PEESE**
-#' Estimated effect size of an infinitely precise study. Using 4/3PSM as the conditional estimator instead of PET (can be changed to PET). If the PET-PEESE estimate is in the opposite direction, the effect can be regarded nil. 
-#' By default (can be changed to PET), the function employs a modified sample-size based estimator (see https://www.jepusto.com/pet-peese-performance/). 
-#' It also uses the same RVE sandwich-type based estimator in a CHE (correlated hierarchical effects) working model with the identical random effects structure as the primary (naive) meta-analytic model.
-#' 
-#' Name of the estimate parameter denotes whether PET or PEESE was applied.
-#' 
-#' **WAAP-WLS**
-#' Combined WAAP-WLS estimator (weighted average of the adequately powered - weighted least squares). The method tries to identify studies that are adequately powered to detect the meta-analytic effect.
-#' If there's none or only one such study, the methods falls back to WLS estimator (Stanley & Doucouliagos, 2015).
-#' If there are at least two, WAAP returns a WLS estimate based on only effects from those studies
-#' 
-#' type = 1: WAAP estimate, 2: WLS estimate. kAdequate = number of adequately powered studies
-#' 
-#' **p-uniform**
-#' Permutation-based new version of p-uniform method, the so-called p-uniform* (van Aert, van Assen, 2021).
-#' 
-#' **p-curve**
-#' Permutation-based p-curve method. Output should be pretty self-explanatory.
-#' 
-#' **Power for detecting SESOI and bias-corrected parameter estimates**
-#' Estimates of the statistical power for detecting a smallest effect sizes of interest equal to .20, .50, and .70 in SD units (Cohen's d). 
-#' A sort of a thought experiment, we also assumed that population true values equal the bias-corrected estimates (4/3PSM or PET-PEESE) and computed power for those.
-#' 
-#' **Handling of dependencies in bias-correction methods**
-#' To handle dependencies among the effects, the 4PSM, p-curve, p-uniform are implemented using a permutation-based procedure, randomly selecting only one focal effect (i.e., excluding those which were not coded as being focal) from a single study and iterating nIterations times.
-#' Lastly, the procedure selects the result with the median value of the ES estimate (4PSM, p-uniform) or median z-score of the full p-curve (p-curve).
-#' 
+datCompensatory <- data %>% filter(effectCompPriming == 1)
+datPriming <- data %>% filter(effectCompPriming == 2)
 
-namesObjects <- c("Self-administered mindfulness", "Biofeedback")
-levels(dat$strategy) <- namesObjects
-dataObjects <- list("Mind" = dataMind, "Bio" = dataBio)
+datPhysTempMan <- data %>% filter(physicalTemperatureManipulation_reconcil == 1)
+datVisVerbTempPrime <- data %>% filter(visualVerbalTemperaturePrime_reconcil == 1)
+datOutTemp <- data %>% filter(outsideTemperature_reconcil == 1)
+datTempEst <- data %>% filter(temperatureEstimate_reconcil == 1)
+datSubjWarmJudg <- data %>% filter(subjectiveWarmthJudgment_reconcil == 1)
+datCoreTempMeas <- data %>% filter(coreTemperatureMeasurement_reconcil == 1)
+datSkinTempMeas <- data %>% filter(skinTemperatureMeasurement_reconcil == 1)
+
+datEmotion <- data %>% filter(categoryEmotion_reconcil == 1)
+datInterpersonal <- data %>% filter(categoryInterpersonal_reconcil == 1)
+datPersonPerc <- data %>% filter(categoryPersonPerception_reconcil == 1)
+datGroupProc <- data %>% filter(categoryGroupProcesses_reconcil == 1)
+datRobotics <- data %>% filter(categoryRobotics_reconcil == 1)
+datMoralJudg <- data %>% filter(categoryMoralJudgment_reconcil == 1)
+datSelfReg <- data %>% filter(categorySelfRegulation_reconcil == 1)
+datCognProc <- data %>% filter(categoryCognitiveProcesses_reconcil == 1)
+datDM <- data %>% filter(categoryJudgmentAndDecisionMaking_reconcil == 1)
+datNeurMech <- data %>% filter(categoryNeuralMechanisms_reconcil == 1)
+
+# Compensatory / Priming
+namesObjects <- c("Compensatory", "Priming")
+levels(data$effectCompPriming) <- namesObjects
+dataObjects <- list("Compensatory" = datCompensatory[datCompensatory$useMA == 1,], "Priming" = datPriming[datPriming$useMA == 1,])
 
 rmaObjects <- setNames(lapply(dataObjects, function(x){rmaCustom(x)}), nm = namesObjects)
 
@@ -138,11 +100,71 @@ results <- setNames(results, nm = namesObjects)
 metaResultsPcurve <- setNames(metaResultsPcurve, nm = namesObjects)
 
 #+ include = TRUE
-#'## Self-administered mindfulness
-results$`Self-administered mindfulness`
+#'## Compensatory
+results$Compensatory
 
-#'## Biofeedback
-results$Biofeedback
+#'## Priming
+results$Priming
+
+#'## Comparison of strategies
+
+#'### Model without covariates
+viMatrixEffTypeComp <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaObjectEffTypeComp <- rma.mv(yi ~ 0 + factor(effectCompPriming), V = viMatrixEffTypeComp, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelEffTypeComp <- conf_int(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+list("Model results" = RVEmodelEffTypeComp, "RVE Wald test" = Wald_test(rmaObjectEffTypeComp, constraints = constrain_equal(1:2), vcov = "CR2"))
+
+#'### Model with covariates
+#' Controlling for design-related factors that are prognostic w.r.t. the effect sizes (i.e., might vary across moderator categories)
+viMatrixEffTypeComp <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaObjectEffTypeComp <- rma.mv(yi ~ 0 + factor(effectCompPriming) + rct + published +  sourceTargetDirectionality_reconcil + studentSample, V = viMatrixEffTypeComp, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelEffTypeComp <- conf_int(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+list("Model results" = RVEmodelEffTypeComp, "RVE Wald test" = Wald_test(rmaObjectEffTypeComp, constraints = constrain_equal(1:2), vcov = "CR2"))
+
+
+# Different methods
+namesObjectsMethods <- c("Physical temperature manipulation", "Visual/verbal temperature prime", "Outside temperature", "Temperature estimate as DV", "Subjective warmth judgment as DV")
+dataObjectsMethods <- list("Physical temperature manipulation" = datPhysTempMan[datPhysTempMan$useMA == 1,], "Visual/verbal temperature prime" = datVisVerbTempPrime[datVisVerbTempPrime$useMA == 1,], "Outside temperature" = datOutTemp[datOutTemp$useMA == 1,], "Temperature estimate as DV" = datTempEst[datTempEst$useMA == 1,], "Subjective warmth judgment as DV" = datSubjWarmJudg[datSubjWarmJudg$useMA == 1,])
+rmaObjectsMethods <- setNames(lapply(dataObjectsMethods, function(x){rmaCustom(x)}), nm = namesObjectsMethods)
+
+# Further results
+# Leaving out the Core temperature measurement and Skin temperature measurement, since k is too low
+maResultsMethods <- list(NA)
+for(i in 1:length(rmaObjectsMethods)){
+  maResultsMethods[[i]] <- maResults(data = dataObjectsMethods[[i]], rmaObject = rmaObjectsMethods[[i]], bias = F)
+}
+maResultsMethods <- setNames(maResultsMethods, nm = namesObjectsMethods)
+
+#+ include = TRUE
+#'## Physical temperature manipulation
+maResultsMethods$`Physical temperature manipulation`
+#'## Visual/verbal temperature prime
+maResultsMethods$`Visual/verbal temperature prime`
+#'## Outside temperature
+maResultsMethods$`Outside temperature`
+#'## Temperature estimate as DV
+maResultsMethods$`Temperature estimate as DV`
+#'## Subjective warmth judgment as DV
+maResultsMethods$`Subjective warmth judgment as DV`
+
+##
+
+biasMethods <- list(NA)
+metaResultsPcurveMethods <- list(NA)
+for(i in c(1, 2, 4)){
+  biasMethods[[i]] <- maResults(data = dataObjectsMethods[[i]], rmaObject = rmaObjectsMethods[[i]])
+  metaResultsPcurveMethods[[i]] <- metaResultPcurve
+}
+biasMethods <- setNames(biasMethods, nm = namesObjectsMethods[1:4])
+metaResultsPcurveMethods <- setNames(metaResultsPcurveMethods, nm = namesObjectsMethods[1:4])
+
+#+ include = TRUE
+#'## Compensatory
+results$Compensatory
+
+#'## Priming
+results$Priming
+
 
 # Plots -------------------------------------------------------------------
 
@@ -151,16 +173,19 @@ results$Biofeedback
 #'
 
 #'## Contour enhanced funnel plot
-#'### Mindfulness
-dataMind %$% metafor::funnel.default(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+#'### Compensatory
+datCompensatory %$% metafor::funnel.default(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
 
-#'### Biofeedback
-dataBio %$% metafor::funnel.default(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
-
+#'### Priming
+datPriming %$% metafor::funnel.default(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
 
 #'## Forest plots
-#'### Mindfulness
-dataMind %$% forest(x = yi, vi = vi,
+#'### Compensatory
+datCompensatory %$% forest(yi, vi, subset=order(vi), slab = label)
+title("Compensatory")
+
+#'### Priming
+datPriming %$% forest(x = yi, vi = vi,
                     xlim=c(-2,2),            ### adjust horizontal plot region limits
                     subset=order(vi),        ### order by size of yi
                     slab=NA, annotate=FALSE, ### remove study labels and annotations
@@ -170,33 +195,29 @@ dataMind %$% forest(x = yi, vi = vi,
                     psize=2,                 ### increase point size
                     cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
                     lty=c("solid","blank"))  ### remove horizontal line at top of plot
-title("Mindfulness")
-
-#'### Biofeedback
-dataBio %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Biofeedback")
+title("Priming")
 
 #'## p-curve plots
-#'### Mindfulness
-quiet(pcurveMod(metaResultsPcurve$`Self-administered mindfulness`, effect.estimation = FALSE, plot = TRUE))
+#'### Compensatory
+quiet(pcurveMod(metaResultsPcurve$Compensatory, effect.estimation = FALSE, plot = TRUE))
 
-#'### Biofeedback
-quiet(pcurveMod(metaResultsPcurve$Biofeedback, effect.estimation = FALSE, plot = TRUE))
+#'### Priming
+quiet(pcurveMod(metaResultsPcurve$Priming, effect.estimation = FALSE, plot = TRUE))
 
 #'## PET-PEESE plots
 #' Using the sqrt(2/n) and 2/n terms instead of SE and var for PET and PEESE, respectively since modified sample-size based estimator was implemented (see https://www.jepusto.com/pet-peese-performance/).
 #' 
 
-#'### Mindfulness
-quiet(petPeese(dataMind))
+#'### Compensatory
+quiet(petPeese(datCompensatory))
 if(results[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[1]]$`Publication bias`$`4/3PSM`["est"] > 0){
   dataObjects[[1]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/N", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xlim = c(0, .4), xaxs = "i")
 } else {
   dataObjects[[1]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xlim = c(0, .4), ylim = c(-1.5, 2), xaxs = "i")}
 abline((if(results[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[1]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
 
-#'### Biofeedback
-quiet(petPeese(dataBio))
+#'### Priming
+quiet(petPeese(datPriming))
 if(results[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[2]]$`Publication bias`$`4/3PSM`["est"] > 0){
   dataObjects[[2]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xlim = c(0, .2), ylim = c(-1, 3), xaxs = "i")
 } else {
@@ -246,21 +267,6 @@ consIncons <- setNames(consIncons, nm = namesObjects)
 consIncons
 
 #'## Excluding effects due to a high risk of bias
-
-# # Probably need to edit to comply with that is given in the ms: "Following RoB 2 recommendations a study was categorized overall as a high risk of bias if one of two conditions are met: 
-# # A) The study scores a  high risk of bias in at least one domain or B) the study is evaluated as having some concerns for more than one domain. 
-# # A study was judged as having “some concern” whether it raised some concerns in at least one domain. 
-# # Finally a study was assessed as having a low risk of bias if it was judged as having a low risk of bias in all of the five domains. 
-
-highRoB <- list(NA)
-for(i in 1:length(dataObjects)){
-  viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-  rmaObject <- rma.mv(yi ~ 0 + factor(robOverall > acceptableRiskOfBias), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-  RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-  highRoB[[i]] <- list("Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
-}
-highRoB <- setNames(highRoB, nm = namesObjects)
-highRoB
 
 #'## Comparison of strategies
 
@@ -328,3 +334,63 @@ title("Mindfulness (stressCompRecoded = 2)")
 dataBio %>% filter(stressCompRecoded == 3) %$% forest(yi, vi, subset=order(vi), slab = label)
 title("Mindfulness (stressCompRecoded = 3)")
 
+
+#'# Meta-analysis results
+
+#' **RMA results with model-based SEs**
+#'k = number of studies; sqrt in "Variance components" = tau, the standard deviation of true effects; estimate in "Model results" = naive MA estimate
+#'
+#' **RVE SEs with Satterthwaite small-sample correction**
+#' Estimate based on a multilevel RE model with constant sampling correlation model (CHE - correlated hierarchical effects - working model) (Pustejovsky & Tipton, 2020; https://osf.io/preprints/metaarxiv/vyfcj/). 
+#' Interpretation of naive-meta-analysis should be based on these estimates.
+#'
+#' **Prediction interval**
+#' Shows the expected range of true effects in similar studies.
+#' As an approximation, in 95% of cases the true effect in a new *published* study can be expected to fall between PI LB and PI UB.
+#' Note that these are non-adjusted estimates. An unbiased newly conducted study will more likely fall in an interval centered around bias-adjusted estimate with a wider CI width.
+#'
+#' **Heterogeneity**
+#' Tau can be interpreted as the total amount of heterogeneity in the true effects. 
+#' I^2$ represents the ratio of true heterogeneity to total variance across the observed effect estimates. Estimates calculated by 2 approaches are reported.
+#' This is followed by separate estimates of between- and within-cluster heterogeneity and estimated intra-class correlation of underlying true effects.
+#' 
+#' **Proportion of significant results**
+#' What proportion of effects were statistically at the alpha level of .05.
+#' 
+#' **ES-precision correlation**
+#' Kendalls's correlation between the ES and precision
+#' 
+#' **4/3PSM**
+#' Applies a permutation-based, step-function 4-parameter selection model (one-tailed p-value steps = c(.025, .5, 1)). 
+#' Falls back to 3-parameter selection model if at least one of the three p-value intervals contains less than 4 p-values.
+#' 
+#' pvalue = p-value testing H0 that the effect is zero. ciLB and ciUB are lower and upper bound of the CI. k = number of studies. steps = 3 means that the 4PSM was applied, 2 means that the 3PSM was applied.
+#' 
+#' **PET-PEESE**
+#' Estimated effect size of an infinitely precise study. Using 4/3PSM as the conditional estimator instead of PET (can be changed to PET). If the PET-PEESE estimate is in the opposite direction, the effect can be regarded nil. 
+#' By default (can be changed to PET), the function employs a modified sample-size based estimator (see https://www.jepusto.com/pet-peese-performance/). 
+#' It also uses the same RVE sandwich-type based estimator in a CHE (correlated hierarchical effects) working model with the identical random effects structure as the primary (naive) meta-analytic model.
+#' 
+#' Name of the estimate parameter denotes whether PET or PEESE was applied.
+#' 
+#' **WAAP-WLS**
+#' Combined WAAP-WLS estimator (weighted average of the adequately powered - weighted least squares). The method tries to identify studies that are adequately powered to detect the meta-analytic effect.
+#' If there's none or only one such study, the methods falls back to WLS estimator (Stanley & Doucouliagos, 2015).
+#' If there are at least two, WAAP returns a WLS estimate based on only effects from those studies
+#' 
+#' type = 1: WAAP estimate, 2: WLS estimate. kAdequate = number of adequately powered studies
+#' 
+#' **p-uniform**
+#' Permutation-based new version of p-uniform method, the so-called p-uniform* (van Aert, van Assen, 2021).
+#' 
+#' **p-curve**
+#' Permutation-based p-curve method. Output should be pretty self-explanatory.
+#' 
+#' **Power for detecting SESOI and bias-corrected parameter estimates**
+#' Estimates of the statistical power for detecting a smallest effect sizes of interest equal to .20, .50, and .70 in SD units (Cohen's d). 
+#' A sort of a thought experiment, we also assumed that population true values equal the bias-corrected estimates (4/3PSM or PET-PEESE) and computed power for those.
+#' 
+#' **Handling of dependencies in bias-correction methods**
+#' To handle dependencies among the effects, the 4PSM, p-curve, p-uniform are implemented using a permutation-based procedure, randomly selecting only one focal effect (i.e., excluding those which were not coded as being focal) from a single study and iterating nIterations times.
+#' Lastly, the procedure selects the result with the median value of the ES estimate (4PSM, p-uniform) or median z-score of the full p-curve (p-curve).
+#' 

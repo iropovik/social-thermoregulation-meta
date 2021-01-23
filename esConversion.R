@@ -1,9 +1,5 @@
 # Read in the data
 # install required R libraries if not installed already
-
-rm(list = ls())
-rmCor <- 0.5
-
 list.of.packages <- c("car", "tidyverse", "psych", "metafor", "esc", "lme4", "ggplot2", "knitr", "puniform", "kableExtra", "lmerTest", "pwr", "Amelia", "multcomp", "magrittr")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -12,8 +8,7 @@ if(length(new.packages)) install.packages(new.packages)
 lapply(list.of.packages, require, quietly = TRUE, warn.conflicts = FALSE, character.only = TRUE)
 select <- dplyr::select
 
-dat <- readxl::read_excel("dataTest.xlsx")
-dat <- as.data.frame(dat)
+dat <- read.csv("data.csv", sep = ";")
 
 dat <- dat %>% modify_at(., .at = c("F", "beta", "t", "r", "chiSq", "df1", "df2", "sdWarm", "sdCold", "sdControl", "nWarm", "nCold", "nControl" , "mWarm", "mCold", "mControl", "publicationYear", "nMale", "nFemale"), .f = ~as.numeric(as.character(.)))
 
@@ -100,8 +95,6 @@ dat <- dat %>% mutate(finalDesign = ifelse(!is.na(r) & !is.na(df2), "cor", final
                       p = ifelse(finalDesign == "cor", 2*pt(abs(r*sqrt(df2 / (1 - r^2))), df2, lower.tail = FALSE), p)
 )
 
-dat %$% ifelse(finalDesign == "cor", (1 - (3/(4*df2 - 1))) * (4 * rVar/(1 - r^2)^3), NA)
-
 # Show the converted ESs
 dat %>% filter(finalDesign == "cor") %>% select(gConv, r, rVar, gVarConv, p, design, ni)
 
@@ -181,4 +174,45 @@ dat <- dat %>% mutate(yi = ifelse(!is.na(gConv) & !is.na(direction), direction *
                       vi = ifelse(!is.na(gVarConv) & !is.na(direction), gVarConv, vi),
                       label = paste(paperID, "/", studyID, "/", effectID, sep = ""))
 
-dat %>% filter(useForMeta == 1) %>% select(result, yi, vi, direction, ni, p, design, finalDesign, reportedOverallN, df2, r, beta)
+dat %>% filter(useMA == 1) %>% select(result, yi, vi, direction, ni, p, design, finalDesign, reportedOverallN, df2, r, beta)
+
+dat %>% filter(ni != reportedOverallN) %>% select(ni, reportedOverallN, df2, nWarm, nCold, nControl)
+
+dat %>% filter(abs(dReported - gConv) > .2) %>% select(result, gConv, dReported)
+
+# F 19, 
+# t 43
+
+# Reconciliation of the substantive variables
+dat <- dat %>% rowwise() %>% mutate(
+physicalTemperatureManipulation_reconcil = median(c(physicalTemperatureManipulationElisa,	physicalTemperatureManipulationBill, physicalTemperatureManipulationBastien), na.rm = T),
+visualVerbalTemperaturePrime_reconcil = median(c(visualVerbalTemperaturePrimeElisa,	visualVerbalTemperaturePrimeBill, visualVerbalTemperaturePrimeBastien), na.rm = T),
+outsideTemperature_reconcil = median(c(outsideTemperatureElisa,	outsideTemperatureBill,	outsideTemperatureBastien), na.rm = T),
+temperatureEstimate_reconcil = median(c(temperatureEstimateElisa,	temperatureEstimateBill,	temperatureEstimateBastien), na.rm = T),
+subjectiveWarmthJudgment_reconcil = median(c(subjectiveWarmthJudgmentElisa,	subjectiveWarmthJudgmentBill,	subjectiveWarmthJudgmentBastien), na.rm = T),
+coreTemperatureMeasurement_reconcil = median(c(coreTemperatureMeasurementElisa,	coreTemperatureMeasurementBill,	coreTemperatureMeasurementBastien), na.rm = T),
+skinTemperatureMeasurement_reconcil = median(c(skinTemperatureMeasurementElisa,	skinTemperatureMeasurementBill,	skinTemperatureMeasurementBastien), na.rm = T),
+designFeaturesPrimingCompensatory_reconcil = median(c(designFeaturesPrimingCompensatoryElisa,	designFeaturesPrimingCompensatoryBill,	designFeaturesPrimingCompensatoryBastien), na.rm = T),
+categoryEmotion_reconcil = median(c(categoryEmotionElisa,	categoryEmotionBill,	categoryEmotionBastien), na.rm = T),
+categoryInterpersonal_reconcil = median(c(categoryInterpersonalElisa,	categoryInterpersonalBill,	categoryInterpersonalBastien), na.rm = T),
+categoryPersonPerception_reconcil = median(c(categoryPersonPerceptionElisa,	categoryPersonPerceptionBill,	categoryPersonPerceptionBastien), na.rm = T),
+categoryGroupProcesses_reconcil = median(c(categoryGroupProcessesElisa,	categoryGroupProcessesBill,	categoryGroupProcessesBastien), na.rm = T),
+categoryRobotics_reconcil = median(c(categoryRoboticsElisa,	categoryRoboticsBill,	categoryRoboticsBastien), na.rm = T),
+categoryMoralJudgment_reconcil = median(c(categoryMoralJudgmentElisa,	categoryMoralJudgmentBill,	categoryMoralJudgmentBastien), na.rm = T),
+categorySelfRegulation_reconcil = median(c(categorySelfRegulationElisa,	categorySelfRegulationBill,	categorySelfRegulationBastien), na.rm = T),
+categoryCognitiveProcesses_reconcil = median(c(categoryCognitiveProcessesElisa,	categoryCognitiveProcessesBill,	categoryCognitiveProcessesBastien), na.rm = T),
+categoryJudgmentAndDecisionMaking_reconcil = median(c(categoryJudgmentAndDecisionMakingElisa,	categoryJudgmentAndDecisionMakingBill,	categoryJudgmentAndDecisionMakingBastien), na.rm = T),
+categoryNeuralMechanisms_reconcil = median(c(categoryNeuralMechanismsElisa,	categoryNeuralMechanismsBill,	categoryNeuralMechanismsBastien), na.rm = T),
+sourceTargetDirectionality_reconcil = median(c(sourceTargetDirectionalityElisa,	sourceTargetDirectionalityBill,	sourceTargetDirectionalityBastien), na.rm = T)
+)
+
+dat <- dat %>% mutate(categoryCognitiveProcesses_reconcil = ifelse(categoryCognitiveProcesses_reconcil == .5, categoryCognitiveProcesses, categoryCognitiveProcesses_reconcil),
+                      sourceTargetDirectionality_reconcil = ifelse(sourceTargetDirectionality_reconcil == .5, NA, sourceTargetDirectionality_reconcil))
+
+
+# Recoding of the method type dummies into a categorical variable for moderator analysis
+methodRecoding <- dat %>% select(contains("_reconcil") & !contains("category")) %>% select(1:7) # select the variables
+howManyMethods <- methodRecoding %>% rowSums() # find effects with more than one assigned method
+dat$method <- ifelse(howManyMethods == 1, factor(max.col(methodRecoding)), NA) # filter those out and create a categorical variable
+
+dat$studentSample <- ifelse(dat$sampleType == "student", 1, ifelse(dat$sampleType == "general", 0, NA))
