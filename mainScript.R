@@ -38,14 +38,12 @@ test <- "one-tailed"
 nIterations <- 5 # Set to 5 just to make code checking/running fast. For the final paper, it needs to be set to at least 1000 and run overnight.
 nIterationsPcurve <- 5
 
-# Exclude studies having an overall Risk of Bias score of at least x.
-acceptableRiskOfBias <- 2
-
 # Sourcing and data -----------------------------------------------------------------
 source("functions.R")
 source("pcurvePlotOption.R")
 source("esConversion.R")
 
+funnel <- metafor::funnel
 # GRIM & GRIMMER Test -----------------------------------------------------
 # grimAndGrimmer(dat)
 
@@ -53,6 +51,10 @@ source("esConversion.R")
 
 # Subset
 # Into esConversion
+
+# Remove outliers
+dat <- dat %>% filter(!result %in% c(194))
+
 datMood <- dat %>% filter(positiveNegativeAffect == 1)
 data <- dat %>% filter(positiveNegativeAffect != 1)
 
@@ -88,7 +90,7 @@ dataObjects <- list("Compensatory" = datCompensatory[datCompensatory$useMA == 1,
 
 rmaObjects <- setNames(lapply(dataObjects, function(x){rmaCustom(x)}), nm = namesObjects)
 
-# Further results
+# Results
 results <- list(NA)
 metaResultsPcurve <- list(NA)
 for(i in 1:length(rmaObjects)){
@@ -106,7 +108,7 @@ results$Compensatory
 #'## Priming
 results$Priming
 
-#'## Comparison of strategies
+#'## Comparison of effect types
 
 #'### Model without covariates
 viMatrixEffTypeComp <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
@@ -121,13 +123,93 @@ rmaObjectEffTypeComp <- rma.mv(yi ~ 0 + factor(effectCompPriming) + rct + publis
 RVEmodelEffTypeComp <- conf_int(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
 list("Model results" = RVEmodelEffTypeComp, "RVE Wald test" = Wald_test(rmaObjectEffTypeComp, constraints = constrain_equal(1:2), vcov = "CR2"))
 
+# Plots -------------------------------------------------------------------
+
+#+ include = TRUE
+#'# Plots
+#'
+
+#'## Contour enhanced funnel plot
+#'### Compensatory
+datCompensatory %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+
+#'### Priming
+datPriming %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+
+#'## Forest plots
+
+
+#'### Forest plot
+par(mar=c(4,4,1,2), mfrow=c(1,2))
+datCompensatory %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+       xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+       subset = order(vi),        ### order by size of yi
+       slab = NA, annotate = FALSE, ### remove study labels and annotations
+       efac = 0,                  ### remove vertical bars at end of CIs
+       pch = 19,                  ### changing point symbol to filled circle
+       col = "gray40",            ### change color of points/CIs
+       psize = 1.5,                 ### increase point size
+       cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+       lty=c("solid","blank"))  ### remove horizontal line at top of plot
+title("Compensatory", cex.main = 1)
+addpoly(rmaObjects[[1]][[1]], row = 0, mlab = "", cex = 1, annotate = F)
+
+datPriming %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+       xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+       subset = order(vi),        ### order by size of yi
+       slab = NA, annotate = FALSE, ### remove study labels and annotations
+       efac = 0,                  ### remove vertical bars at end of CIs
+       pch = 19,                  ### changing point symbol to filled circle
+       col = "gray40",            ### change color of points/CIs
+       psize = 3,                 ### increase point size
+       cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+       lty=c("solid","blank"))  ### remove horizontal line at top of plot
+title("Priming", cex.main = 1)
+addpoly(rmaObjects[[2]][[1]], row = -2, mlab = "", cex = 1, annotate = F)
+compPrimForest <- recordPlot()
+
+#'## p-curve plots
+#'### Compensatory
+quiet(pcurveMod(metaResultsPcurve$Compensatory, effect.estimation = FALSE, plot = TRUE))
+
+#'### Priming
+quiet(pcurveMod(metaResultsPcurve$Priming, effect.estimation = FALSE, plot = TRUE))
+
+#'## PET-PEESE plots
+#' Using the sqrt(2/n) and 2/n terms instead of SE and var for PET and PEESE, respectively since modified sample-size based estimator was implemented (see https://www.jepusto.com/pet-peese-performance/).
+#' 
+
+#'### Compensatory
+quiet(petPeese(datCompensatory))
+if(results[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[1]]$`Publication bias`$`4/3PSM`["est"] > 0){
+  dataObjects[[1]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/N", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xlim = c(0, .35), ylim = c(-.2, 1.5), xaxs = "i")
+} else {
+  dataObjects[[1]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xlim = c(0, .35), ylim = c(-.2, 1.5), xaxs = "i")}
+abline((if(results[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[1]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
+
+#'### Priming
+quiet(petPeese(datPriming))
+if(results[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[2]]$`Publication bias`$`4/3PSM`["est"] > 0){
+  dataObjects[[2]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
+} else {
+  dataObjects[[2]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
+abline((if(results[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
+
+# Subgroup analysis for different methods ---------------------------------
 
 # Different methods
 namesObjectsMethods <- c("Physical temperature manipulation", "Visual/verbal temperature prime", "Outside temperature", "Temperature estimate as DV", "Subjective warmth judgment as DV")
 dataObjectsMethods <- list("Physical temperature manipulation" = datPhysTempMan[datPhysTempMan$useMA == 1,], "Visual/verbal temperature prime" = datVisVerbTempPrime[datVisVerbTempPrime$useMA == 1,], "Outside temperature" = datOutTemp[datOutTemp$useMA == 1,], "Temperature estimate as DV" = datTempEst[datTempEst$useMA == 1,], "Subjective warmth judgment as DV" = datSubjWarmJudg[datSubjWarmJudg$useMA == 1,])
 rmaObjectsMethods <- setNames(lapply(dataObjectsMethods, function(x){rmaCustom(x)}), nm = namesObjectsMethods)
 
-# Further results
+#'### Moderator analysis
+data$method <- factor(data$method, levels = 1:5, labels = namesObjectsMethods)
+viMatrixEffTypeComp <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaObjectEffTypeComp <- rma.mv(yi ~ 0 + method, V = viMatrixEffTypeComp, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelEffTypeComp <- conf_int(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+list("Model results" = RVEmodelEffTypeComp, "RVE Wald test" = Wald_test(rmaObjectEffTypeComp, constraints = constrain_equal(1:5), vcov = "CR2"))
+
+# Results
 # Leaving out the Core temperature measurement and Skin temperature measurement, since k is too low
 maResultsMethods <- list(NA)
 for(i in 1:length(rmaObjectsMethods)){
@@ -158,71 +240,180 @@ for(i in c(1, 2, 4)){
 biasMethods <- setNames(biasMethods, nm = namesObjectsMethods[1:4])
 metaResultsPcurveMethods <- setNames(metaResultsPcurveMethods, nm = namesObjectsMethods[1:4])
 
+#'## Physical temperature manipulation
+biasMethods$`Physical temperature manipulation`
+#'## Visual/verbal temperature prime
+biasMethods$`Visual/verbal temperature prime`
+#'## Temperature estimate as DV
+biasMethods$`Temperature estimate as DV`
+
+# Funnel plots for different methods
+par(mfrow=c(3,2), mar=c(4,3,4,3))
+funnel(rmaObjectsMethods$`Physical temperature manipulation`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Physical temperature manipulation")
+funnel(rmaObjectsMethods$`Visual/verbal temperature prime`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Visual/verbal temperature prime")
+funnel(rmaObjectsMethods$`Outside temperature`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Outside temperature")
+funnel(rmaObjectsMethods$`Temperature estimate as DV`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Temperature estimate as DV")
+funnel(rmaObjectsMethods$`Subjective warmth judgment as DV`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Subjective warmth judgment as DV")
+funnelMethod <- recordPlot()
+
+#'### Forest plots
+# par(mar=c(4,4,1,2), mfrow=c(3,2))
+data %>% filter(physicalTemperatureManipulation_reconcil == 1 & useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
+title("Physical temperature manipulation")
+addpoly(rmaObjectsMethods$`Physical temperature manipulation`[[1]], row = 0, mlab = "", cex = 1)
+
+data %>% filter(visualVerbalTemperaturePrime_reconcil == 1 & useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
+title("Visual/verbal temperature prime")
+addpoly(rmaObjectsMethods$`Visual/verbal temperature prime`[[1]], row = 0, mlab = "", cex = 1)
+
+data %>% filter(outsideTemperature_reconcil == 1 & useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
+title("Outside temperature")
+addpoly(rmaObjectsMethods$`Outside temperature`[[1]], row = .3, mlab = "", cex = 1)
+
+data %>% filter(temperatureEstimate_reconcil == 1 & useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
+title("Temperature estimate as DV")
+addpoly(rmaObjectsMethods$`Temperature estimate as DV`[[1]], row = 0, mlab = "", cex = 1)
+
+data %>% filter(subjectiveWarmthJudgment_reconcil == 1 & useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
+title("Subjective warmth judgment as DV")
+addpoly(rmaObjectsMethods$`Subjective warmth judgment as DV`[[1]], row = .3, mlab = "", cex = 1)
+
+# Subgroup analysis for different categories ------------------------------
+
+# Different categories
+# Leaving out the Robotics and Neural Mechanisms, since k is too low
+namesObjectsCategories <- c("Emotion", "Interpersonal", "Person perception", "Group processes", "Moral judgment", "Self-regulation", "Cognitive processes", "Economic decision-making")
+dataObjectsCategories <- list("Emotion" = datEmotion[datEmotion$useMA == 1,], "Interpersonal" = datInterpersonal[datInterpersonal$useMA == 1,], "Person perception" = datPersonPerc[datPersonPerc$useMA == 1,], "Group processes" = datGroupProc[datGroupProc$useMA == 1,], "Moral judgment" = datMoralJudg[datMoralJudg$useMA == 1,], "Self-regulation" = datSelfReg[datSelfReg$useMA == 1,], "Cognitive processes" = datCognProc[datCognProc$useMA == 1,], "Economic decision-making" = datDM[datDM$useMA == 1,])
+rmaObjectsCategories <- setNames(lapply(dataObjectsCategories, function(x){rmaCustom(x)}), nm = namesObjectsCategories)
+
+# Results
+maResultsCategories <- list(NA)
+for(i in c(1,2,3,4,5,6,7,8)){
+  maResultsCategories[[i]] <- maResults(data = dataObjectsCategories[[i]], rmaObject = rmaObjectsCategories[[i]], bias = F)
+}
+maResultsCategories <- setNames(maResultsCategories, nm = namesObjectsCategories)
+
 #+ include = TRUE
-#'## Compensatory
-results$Compensatory
+#'## Emotion
+maResultsCategories$Emotion
+#'## Interpersonal
+maResultsCategories$Interpersonal
+#'## Person perception
+maResultsCategories$`Person perception`
+#'## Group processes
+maResultsCategories$`Group processes`
+#'## Moral judgment
+maResultsCategories$`Moral judgment`
+#'## Self-regulation
+maResultsCategories$`Self-regulation`
+#'## Cognitive processes
+maResultsCategories$`Cognitive processes`
+#'## Economic decision-making
+maResultsCategories$`Economic decision-making`
 
-#'## Priming
-results$Priming
-
-
-# Plots -------------------------------------------------------------------
+biasCategories <- list(NA)
+metaResultsPcurveCategories <- list(NA)
+for(i in c(1,2,3,6,7,8)){
+  biasCategories[[i]] <- maResults(data = dataObjectsCategories[[i]], rmaObject = rmaObjectsCategories[[i]])
+  metaResultsPcurveCategories[[i]] <- metaResultPcurve
+}
+biasCategories <- setNames(biasCategories, nm = namesObjectsCategories)
+metaResultsPcurveCategories <- setNames(metaResultsPcurveCategories, nm = namesObjectsCategories)
 
 #+ include = TRUE
-#'# Plots
-#'
+#'## Emotion
+biasCategories$Emotion
+#'## Interpersonal
+biasCategories$Interpersonal
+#'## Person perception
+biasCategories$`Person perception`
+#'## Self-regulation
+biasCategories$`Self-regulation`
+#'## Cognitive processes
+biasCategories$`Cognitive processes`
+#'## Economic decision-making
+biasCategories$`Economic decision-making`
 
-#'## Contour enhanced funnel plot
-#'### Compensatory
-datCompensatory %$% metafor::funnel.default(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+#'### Contour enhanced funnel plots
+par(mfrow=c(4,2), mar=c(4,4,0,4))
+funnel(rmaObjectsCategories$Emotion[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20,yaxis = "sei", xlab = "Emotion", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$Interpersonal[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Interpersonal", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$`Person perception`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Person perception", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$`Group processes`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Group processes", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$`Moral judgment`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Moral judgment", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$`Self-regulation`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Self-regulation", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$`Cognitive processes`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Cognitive processes", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+funnel(rmaObjectsCategories$`Economic decision-making`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Economic decision-making", ylim = c(0, 0.51), xlim = c(-1, 1.7))
+categoriesFunnel <- recordPlot()
 
-#'### Priming
-datPriming %$% metafor::funnel.default(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+#'#### Forest plots
+datEmotion %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Emotion", cex.main = 1)
+addpoly(rmaObjectsCategories$Emotion[[1]], row = 0, mlab = "", cex = 1, annotate = F)
+datInterpersonal %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Interpersonal", cex.main = 1)
+addpoly(rmaObjectsCategories$Interpersonal[[1]], row = -0.5, mlab = "", cex = 1, annotate = F)
+datPersonPerc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Person perception", cex.main = 1)
+addpoly(rmaObjectsCategories$`Person perception`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
+datGroupProc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Group processes", cex.main = 1)
+addpoly(rmaObjectsCategories$`Group processes`[[1]], row = .5, mlab = "", cex = 1, annotate = F)
+datMoralJudg %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Moral judgment", cex.main = 1)
+addpoly(rmaObjectsCategories$`Moral judgment`[[1]], row = .5, mlab = "", cex = 1, annotate = F)
+datSelfReg %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Self-regulation", cex.main = 1)
+addpoly(rmaObjectsCategories$`Self-regulation`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
+datCognProc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Cognitive processes", cex.main = 1)
+addpoly(rmaObjectsCategories$`Cognitive processes`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
+datCognProc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
+title("Economic decision-making", cex.main = 1)
+addpoly(rmaObjectsCategories$`Economic decision-making`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
 
-#'## Forest plots
-#'### Compensatory
-datCompensatory %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Compensatory")
+# Mood ----------------------------------------------------------
+rmaMood <- datMood %>% filter(useMA == 1) %>% rmaCustom()
+datMood %>% filter(useMA == 1) %>% maResults(., rmaObject = rmaMood, bias = F)
 
-#'### Priming
-datPriming %$% forest(x = yi, vi = vi,
-                    xlim=c(-2,2),            ### adjust horizontal plot region limits
-                    subset=order(vi),        ### order by size of yi
-                    slab=NA, annotate=FALSE, ### remove study labels and annotations
-                    efac=0,                  ### remove vertical bars at end of CIs
-                    pch=19,                  ### changing point symbol to filled circle
-                    col="gray40",            ### change color of points/CIs
-                    psize=2,                 ### increase point size
-                    cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
-                    lty=c("solid","blank"))  ### remove horizontal line at top of plot
-title("Priming")
+datMood %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
+title("Mood")
+addpoly(rmaMood[[1]], row = 0, mlab = "", cex = 1)
 
-#'## p-curve plots
-#'### Compensatory
-quiet(pcurveMod(metaResultsPcurve$Compensatory, effect.estimation = FALSE, plot = TRUE))
+metafor::funnel(rmaMood[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Mood")
 
-#'### Priming
-quiet(pcurveMod(metaResultsPcurve$Priming, effect.estimation = FALSE, plot = TRUE))
 
-#'## PET-PEESE plots
-#' Using the sqrt(2/n) and 2/n terms instead of SE and var for PET and PEESE, respectively since modified sample-size based estimator was implemented (see https://www.jepusto.com/pet-peese-performance/).
-#' 
+# Overall effect ----------------------------------------------------------
+rmaOverall <- data %>% filter(useMA == 1) %>% rmaCustom()
+resultsOverall <- data %>% filter(useMA == 1) %>% maResults(., rmaObject = rmaOverall, bias = T)
+resultsOverall
 
-#'### Compensatory
-quiet(petPeese(datCompensatory))
-if(results[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[1]]$`Publication bias`$`4/3PSM`["est"] > 0){
-  dataObjects[[1]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/N", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xlim = c(0, .4), xaxs = "i")
-} else {
-  dataObjects[[1]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xlim = c(0, .4), ylim = c(-1.5, 2), xaxs = "i")}
-abline((if(results[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[1]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
+data %>% filter(useMA == 1) %$% #'### Forest plot
+  forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+         xlim = c(-3.5,4.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+         subset = order(vi),        ### order by size of yi
+         slab = NA, annotate = FALSE, ### remove study labels and annotations
+         efac = 0,                  ### remove vertical bars at end of CIs
+         pch = 19,                  ### changing point symbol to filled circle
+         col = "gray40",            ### change color of points/CIs
+         psize = 5,                 ### increase point size
+         cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+         lty=c("solid","blank"))  ### remove horizontal line at top of plot
+title("Overall effect", cex.main = 1)
+addpoly(rmaOverall[[1]], row = -3, mlab = "", cex = .5, annotate = FALSE)
+overallForest <- recordPlot()
 
-#'### Priming
-quiet(petPeese(datPriming))
-if(results[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[2]]$`Publication bias`$`4/3PSM`["est"] > 0){
-  dataObjects[[2]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xlim = c(0, .2), ylim = c(-1, 3), xaxs = "i")
-} else {
-  dataObjects[[2]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xlim = c(0, .2), ylim = c(-1.5, 3), xaxs = "i")}
-abline((if(results[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * results[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
+metafor::funnel(rmaOverall[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Overall effect", xlim = c(-1.4, 1.7), steps = 7, digits = c(1,2))
+title("Overall effect", cex.main = 1)
+overallFunnel <- recordPlot()
+
+# Source target directionality
+#'### Moderator analysis
+viMatrixMod <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaObjectTargetDirection <- rma.mv(yi ~ 0 + factor(sourceTargetDirectionality_reconcil), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelTargetDirection <- conf_int(rmaObjectTargetDirection, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+list("Model results" = RVEmodelTargetDirection, "RVE Wald test" = Wald_test(rmaObjectTargetDirection, constraints = constrain_equal(1:2), vcov = "CR2"))
+
 
 # Moderator/sensitivity analyses ------------------------------------------
 
@@ -231,108 +422,183 @@ abline((if(results[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(e
 #' Testing of contrasts is carried out using a robust Wald-type test testing the equality of estimates across levels of the moderator.
 #' 
 
+#'# Meta-regression
+#'
+#'## Moderation by citations and IF
+#'#### Overall effect moderated by citations and IF
+rmaModCit <- rma.mv(yi ~ scale(publicationYear) + scale(citationsGSMarch2016) + scale(h5indexGSJournalMarch2016), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModCit <- conf_int(rmaModCit, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+
+#'## Moderation by lattitude
+#'#### Overall effect moderated by lattitude
+rmaModLat <- rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModLat <- conf_int(rmaModLat, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+
+#'#### Compensatory effects moderated by lattitude
+viMatrixModComp <- datCompensatory %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaModLatComp <- rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModComp, data = datCompensatory[datCompensatory$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModLatComp <- conf_int(rmaModLatComp, vcov = "CR2", test = "z", cluster = datCompensatory[datCompensatory$useMA == 1,]$study)
+
+#'#### Priming effects moderated by lattitude
+viMatrixModPrim <- datPriming %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaModLatPrim <- rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModPrim, data = datPriming[datPriming$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModLatPrim <- conf_int(rmaModLatPrim, vcov = "CR2", test = "z", cluster = datPriming[datPriming$useMA == 1,]$study)
+
+#'#### Mood effects moderated by lattitude
+viMatrixModMood <- datMood %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaModLatMood <- rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModMood, data = datMood[datMood$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModLatMood <- conf_int(rmaModLatMood, vcov = "CR2", test = "z", cluster = datMood[datMood$useMA == 1,]$study)
+
+#'## Moderation by gender
+#'#### Overall effect moderated by gender ratio
+rmaModGender <- rma.mv(yi ~ scale(percFemale), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModGender <- conf_int(rmaModGender, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+
+#'#### Compensatory effects moderated by gender ratio
+rmaModGenderComp <- rma.mv(yi ~ scale(percFemale), V = viMatrixModComp, data = datCompensatory[datCompensatory$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModGenderComp <- conf_int(rmaModGenderComp, vcov = "CR2", test = "z", cluster = datCompensatory[datCompensatory$useMA == 1,]$study)
+
+#'#### Priming effects moderated by gender ratio
+rmaModGenderPrim <- rma.mv(yi ~ scale(percFemale), V = viMatrixModPrim, data = datPriming[datPriming$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModGenderPrim <- conf_int(rmaModGenderPrim, vcov = "CR2", test = "z", cluster = datPriming[datPriming$useMA == 1,]$study)
+
 #'## Published status
+rmaModPublished <- rma.mv(yi ~ 0 + factor(published), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModPublished <- conf_int(rmaModPublished, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+modPubUnpub <- list("Model results" = RVEmodelModPublished, "RVE Wald test" = Wald_test(rmaModPublished, constraints = constrain_equal(1:2), vcov = "CR2"))
 
-pubUnpub <- list(NA)
-for(i in 1:length(dataObjects)){
-  viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-  rmaObject <- rma.mv(yi ~ 0 + factor(published), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-  RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-  pubUnpub[[i]] <- list("Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
-}
-pubUnpub <- setNames(pubUnpub, nm = namesObjects)
-pubUnpub
+#'## Comparing randomized and non-randomized designs
+rmaModRct<- rma.mv(yi ~ 0 + factor(rct), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModRct <- conf_int(rmaModRct, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+modRct <- list("Model results" = RVEmodelModRct, "RVE Wald test" = Wald_test(rmaModRct, constraints = constrain_equal(1:2), vcov = "CR2"))
 
-#'## Excluding effects from non-randomized designs
-rndNonrnd <- list(NA)
-for(i in 1:length(dataObjects)){
-  viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-  rmaObject <- rma.mv(yi ~ 0 + factor(design == 1), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-  RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-  rndNonrnd[[i]] <- list("Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
-}
-rndNonrnd <- setNames(rndNonrnd, nm = namesObjects)
-rndNonrnd
+#'## Comapring effects based on student and non-student samples
+rmaModStudents<- rma.mv(yi ~ 0 + factor(studentSample), V = viMatrixMod, data = data[data$useMA == 1,], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModStudents <- conf_int(rmaModStudents, vcov = "CR2", test = "z", cluster = data[data$useMA == 1,]$study)
+modRct <- list("Model results" = RVEmodelModStudents, "RVE Wald test" = Wald_test(rmaModStudents, constraints = constrain_equal(1:2), vcov = "CR2"))
 
-#'## Excluding effects due to inconsistent means or SDs
-consIncons <- list(NA)
-i <- 2 # Only for biofeedback, since there were 0 inconsistent means or SDs for mindfulness studies.
-# for(i in 1:length(dataObjects)){
-  viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-  rmaObject <- rma.mv(yi ~ 0 + factor(as.logical(inconsistenciesCountGRIMMER)), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-  RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-  consIncons[[i]] <- list("Count of GRIM/GRIMMER inconsistencies" = table(as.logical(dataObjects[[i]]$inconsistenciesCountGRIMMER)), "Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
-# }
-consIncons <- setNames(consIncons, nm = namesObjects)
-consIncons
+#'## Year of Publication
+#'Linear mixed-effects model. Taking into effect clustering of ESs due to originating from the same study. Using square root of variance to make the distribution normal.
+LMEpubYear <- summary(lmer(scale(sqrt(vi)) ~ scale(h5indexGSJournalMarch2016) + scale(publicationYear) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
+kable(LMEpubYear, "html", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12, position = "left")
+#'Comment: all the variables were centered for easier interpretation of model coefficients. See the negative beta for Publication Year. The higher the publication year, the lower the variance (better precision), controlling for H5.
 
-#'## Excluding effects due to a high risk of bias
+#'#### Scatterplot year <-> precision
+#'
+#'Size of the points indicate the H5 index (the bigger the higher) of the journal that the ES is published in.
+yearPrecisionScatter <- data %>% filter(useMA == 1) %>%  ggplot(aes(publicationYear, sqrt(vi))) + 
+  geom_point(aes(size = h5indexGSJournalMarch2016), alpha = .70, colour = "#80afce") +
+  geom_smooth(method = lm) +
+  scale_x_continuous(breaks = 2005:2017) +
+  xlab("Year of publication") +
+  ylab("Precision") +
+  theme_bw() +
+  theme(legend.position = "none")
+yearPrecisionScatter <- recordPlot()
 
-#'## Comparison of strategies
 
-#'### Model without covariates
-viMatrixStratComp <- impute_covariance_matrix(dat$vi, cluster = dat$study, r = rho, smooth_vi = TRUE)
-rmaObjectStratComp <- rma.mv(yi ~ 0 + factor(strategy), V = viMatrixStratComp, data = dat, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelStratComp <- conf_int(rmaObjectStratComp, vcov = "CR2", test = "z", cluster = dat$study)
-list("Model results" = RVEmodelStratComp, "RVE Wald test" = Wald_test(rmaObjectStratComp, constraints = constrain_equal(1:2), vcov = "CR2"))
+#'## Citations
+#'Linear mixed-effects model. Taking into effect clustering of ESs due to originating from the same study. Using square root of variance to make the distribution normal.
+LMEcitations <- summary(lmer(scale(sqrt(vi)) ~ scale(publicationYear) + scale(h5indexGSJournalMarch2016) + scale(citationsGSMarch2016) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
+kable(LMEcitations, "html", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12, position = "left")
 
-#'### Model with covariates
-#' Controlling for design-related factors that are prognostic w.r.t. the effect sizes (i.e., might vary across moderator categories)
-viMatrixStratComp <- impute_covariance_matrix(dat$vi, cluster = dat$study, r = rho, smooth_vi = TRUE)
-rmaObjectStratComp <- rma.mv(yi ~ 0 + factor(strategy) + design + populationType + comparisonGroupType + published + robOverall, V = viMatrixStratComp, data = dat, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelStratComp <- conf_int(rmaObjectStratComp, vcov = "CR2", test = "z", cluster = dat$study)
-list("Model results" = RVEmodelStratComp, "RVE Wald test" = Wald_test(rmaObjectStratComp, constraints = constrain_equal(1:2), vcov = "CR2"))
 
-#'## Subgroup analysis for stress vs affective consequences
+#'#### Scatterplot precision <-> citations
+#'
+#'The relationship between precision (sqrt of variance) and number of citations.
 
-stressAffectConseq <- list(NA)
-for(i in 1:length(dataObjects)){
-  viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-  rmaObject <- rma.mv(yi ~ 0 + as.factor(stressAffective), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-  RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-  stressAffectConseq[[i]] <- list("Number of included effects per category" = table(dataObjects[[i]]$stressAffective), "Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
-}
-stressAffectConseq <- setNames(stressAffectConseq, nm = namesObjects)
-stressAffectConseq
+citationsPrecisionScatter <- data %>% filter(useMA == 1) %>% ggplot(aes(log(citationsGSMarch2016 + 1), sqrt(vi))) + 
+  geom_point(alpha = .70, colour = "#80afce") +
+  geom_smooth(method = lm) +
+  xlim(0, 8) +
+  xlab("Citations") +
+  ylab("Precision") +
+  theme_bw() +
+  theme(legend.position = "none")
 
-#'### Forest plots
-#'#### Mindfulness
-dataMind %>% filter(stressAffective == 1) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressAffective = 1)")
-dataMind %>% filter(stressAffective == 2) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressAffective = 2)")
-#'#### Biofeedback
-dataBio %>% filter(stressAffective == 1) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressAffective = 1)")
-dataBio %>% filter(stressAffective == 2) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressAffective = 2)")
+#'#### Scatterplot precision <-> journal H5
+#'
 
-#'## Subgroup analysis for stress vs affective consequences
-stressComponentClusters <- list(NA)
-for(i in 1:length(dataObjects)){
-  viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-  rmaObject <- rma.mv(yi ~ 0 + as.factor(stressCompRecoded), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-  RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-  stressComponentClusters[[i]] <- list("Number of included effects per category" = table(dataObjects[[i]]$stressCompRecoded), "Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:3), vcov = "CR2"))
-}
-stressComponentClusters <- setNames(stressComponentClusters, nm = namesObjects)
-stressComponentClusters
+#'Linear mixed-effects model. Taking into effect clustering of ESs due to originating from the same study. Using square root of variance to make the distribution normal.
+LMEh5 <- summary(lmer(scale(sqrt(vi)) ~ scale(h5indexGSJournalMarch2016) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
+kable(LMEh5, "html", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12, position = "left")
 
-#'### Forest plots
-#'#### Mindfulness
-dataMind %>% filter(stressCompRecoded == 1) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressCompRecoded = 1)")
-dataMind %>% filter(stressCompRecoded == 2) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressCompRecoded = 2)")
-dataMind %>% filter(stressCompRecoded == 3) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressCompRecoded = 3)")
-#'#### Biofeedback
-dataBio %>% filter(stressCompRecoded == 1) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressCompRecoded = 1)")
-dataBio %>% filter(stressCompRecoded == 2) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressCompRecoded = 2)")
-dataBio %>% filter(stressCompRecoded == 3) %$% forest(yi, vi, subset=order(vi), slab = label)
-title("Mindfulness (stressCompRecoded = 3)")
+#'The relationship between precision (sqrt of variance) and H5 index of the journal.
+
+h5PrecisionScatter <- data %>% filter(useMA == 1) %>% ggplot(aes(h5indexGSJournalMarch2016, sqrt(vi))) + 
+  geom_point(alpha = .70, colour = "#80afce") +
+  geom_smooth(method = lm) +
+  xlim(20, 165) +
+  xlab("H5 index") +
+  ylab("Precision") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+#'## Decline effect
+#'Linear mixed-effects model. Taking into effect clustering of ESs due to originating from the same study.
+declineEff <- summary(lmer(scale(abs(as.numeric(rmaOverall[[1]][1]) - yi)) ~ scale(sqrt(vi)) + scale(publicationYear) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
+kable(declineEff, "html", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12, position = "left")
+
+#'## Citation bias
+#'Linear mixed-effects model. Taking into effect clustering of ESs due to originating from the same study.
+citBias <- summary(lmer(scale(abs(as.numeric(rmaOverall[[1]][1]) - yi)) ~ scale(sqrt(vi)) + scale(citationsGSMarch2016) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
+kable(citBias, "html", digits = 3) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12, position = "left")
+
+#'## P-curve for interaction effects
+data %>% filter(moderatedEffect == 1) %>% pcurvePerm(., plot = T)
+
+# Counts
+# Simple counts:
+#   1.	How often did authors test for moderation by attachment? 
+table(dat$moderationAttachment)
+#   2.	How often did authors use which attachment measure?
+table(dat$attachmentMeasure)
+#   3.	Via validated tests: How often was tested for:
+# a.	Independence of awareness
+table(dat$vTestsAwareness)
+# b.	Lack of intention
+table(dat$vLackIntention)
+# c.	Efficiency of behavior
+table(dat$vEfficiencyBehavior)
+# d.	Lack of control of behavior
+table(dat$vLackControl)
+# 4.	Via non-validated tests: How often was tested for:
+# a.	Independence of awareness
+table(dat$nvTestsAwareness)
+# b.	Lack of intention
+table(dat$nvLackIntention)
+# c.	Efficiency of behavior
+table(dat$nvEfficiencyBehavior)
+# d.	Lack of control of behavior
+table(dat$nvLackControl)
+# 5.	Whether researchers tested for innateness
+table(dat$testsInnateness)
+# 6.	Has skin color/ethnicity been reported?
+table(dat$ethnicityReported)
+# 7.	Skin temperature location
+table(dat$skinLocation)
+# 8.	Population type
+table(dat$sampleType)
+# 9.  Control group type (1 = active controls)
+table(dat$activePassiveControl)
+
+
+#' #'## Excluding effects due to inconsistent means or SDs
+#' consIncons <- list(NA)
+#' i <- 2 # Only for biofeedback, since there were 0 inconsistent means or SDs for mindfulness studies.
+#' # for(i in 1:length(dataObjects)){
+#' viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
+#' rmaObject <- rma.mv(yi ~ 0 + factor(as.logical(inconsistenciesCountGRIMMER)), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
+#' RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
+#' consIncons[[i]] <- list("Count of GRIM/GRIMMER inconsistencies" = table(as.logical(dataObjects[[i]]$inconsistenciesCountGRIMMER)), "Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
+#' # }
+#' consIncons <- setNames(consIncons, nm = namesObjects)
+#' consIncons
 
 
 #'# Meta-analysis results

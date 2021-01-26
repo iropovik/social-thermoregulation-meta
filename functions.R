@@ -23,7 +23,7 @@ if (test == "one-tailed") {
 # Custom robust (RVE) multivariate RE meta-analytic model (using the CHE working model)
 # Needs specific naming of ES, variances and data on clustering; yi = yi, vi = vi, study, result
 # Using n/(n-p) small-sample correction for RVE SEs
-rmaCustom <- function(data = NA, robust = TRUE){
+rmaCustom <- function(data = NA){
   data <- data %>% filter(useMA == 1)
   viMatrix <- impute_covariance_matrix(data$vi, cluster = data$study, r = rho, smooth_vi = TRUE)
   rmaObjectModBasedSE <- rma.mv(yi = yi, V = viMatrix, data = data, method = "REML", random = ~ 1|study/result, sparse = TRUE)
@@ -299,7 +299,7 @@ maResults <- function(rmaObject = NA, data = NA, bias = T){
     "Heterogeneity" = heterogeneity(rmaObject),
     "Proportion of significant results" = propSig(data[data$useMA == 1,]$p),
     "Publication bias" = if(bias ==T) {bias(data, rmaObject)} else {paste("Publication bias corrections not carried out")},
-    "Power for detecting SESOI and bias-corrected parameter estimates" = powerEst(data))
+    "Power for detecting SESOI and bias-corrected parameter estimates" = if(bias ==T) {powerEst(data)} else {paste("Power for detecting bias-corrected parameter estimates not computed")})
 }
 
 biasResults <- function(rmaObject = NA, data = NA){
