@@ -300,7 +300,7 @@ bias <- function(data = NA, rmaObject = NA){
 maResults <- function(rmaObject = NA, data = NA, bias = T){
   list(
     "RMA results with model-based SEs" = rmaObject[[2]],
-    "RVE SEs with Satterthwaite small-sample correction" = list("test" = coef_test(rmaObject[[2]], vcov = "CR2", cluster = data$study), "CIs" = conf_int(rmaObject[[2]], vcov = "CR2", cluster = data$study)),
+    "RVE SEs with Satterthwaite small-sample correction" = list("test" = coef_test(rmaObject[[2]], vcov = "CR2", cluster = data[data$useMA == 1,]$study), "CIs" = conf_int(rmaObject[[2]], vcov = "CR2", cluster = data[data$useMA == 1,]$study)),
     "Prediction interval" = pi95(rmaObject),
     "Heterogeneity" = heterogeneity(rmaObject),
     "Proportion of significant results" = propSig(data[data$useMA == 1,]$p),

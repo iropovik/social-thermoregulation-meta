@@ -12,6 +12,7 @@
 #' ---
 
 #+ setup, include = FALSE
+# NOTE: Please note that to run the script, you need the development versions of metafor and dmetar packages from github.
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 
 rm(list = ls())
@@ -35,8 +36,8 @@ side <- "right"
 test <- "one-tailed"
 
 # No of simulations for the permutation-based bias correction models and p-curve specifically
-nIterations <- 5000 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
-nIterationsPcurve <- 200
+nIterations <- 3 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
+nIterationsPcurve <- 3
 
 # Controls for the multiple-parameter selection models 
 
@@ -141,7 +142,7 @@ rmaAttachment <- datAttachment %>% mutate(useMA = 1) %>% rmaCustom()
 resultsAttachment <- datAttachment %>% mutate(useMA = 1) %>% maResults(., rmaObject = rmaAttachment, bias = T)
 
 #'## Forest plot
-datAttachment %$% forest(yi, vi, subset=order(yi), slab = result)
+datAttachment %$% forest(yi, vi, subset = order(yi), slab = result)
 title("Moderation by prior experiences in relationships")
 addpoly(rmaAttachment[[1]], row = 0, mlab = "", cex = 1)
 
@@ -152,7 +153,6 @@ metafor::funnel(rmaAttachment[[1]], level=c(90, 95, 99), shade=c("white", "gray"
 quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
 
 # Effect type Compensatory vs Priming -------------------------------------
-
 #'# Effect type
 if(contrAssimConceptualization == 1){
   datCompensatory <- data %>% filter(contrastAssimilation == 1)
@@ -166,7 +166,7 @@ if(contrAssimConceptualization == 1){
 # Compensatory / Priming
 namesObjects <- c("Compensatory", "Priming")
 levels(data$effectCompPriming) <- namesObjects
-dataObjects <- list("Compensatory" = datCompensatory[datCompensatory$useMA == 1,], "Priming" = datPriming[datPriming$useMA == 1,])
+dataObjects <- list("Compensatory" = datCompensatory, "Priming" = datPriming)
 rmaObjects <- setNames(lapply(dataObjects, function(x){rmaCustom(x)}), nm = namesObjects)
 
 # Results
@@ -277,8 +277,8 @@ dev.off()
 #'# Mood
 #'
 #'## Results
-rmaMood <- datMood %>% filter(useMA == 1) %>% rmaCustom()
-resultsMood <- datMood %>% filter(useMA == 1) %>% maResults(., rmaObject = rmaMood, bias = F)
+rmaMood <- datMood %>% rmaCustom()
+resultsMood <- datMood %>% maResults(., rmaObject = rmaMood, bias = F)
 resultsMood
 
 #'## Forest plot
@@ -296,8 +296,8 @@ metafor::funnel(rmaMood[[1]], level=c(90, 95, 99), shade=c("white", "gray", "dar
 #'## Results
 #' Number of iterations run equal to `r nIterationsPcurve` for p-curve and `r nIterations` for all other bias correction functions.
 
-rmaOverall <- data %>% filter(useMA == 1) %>% rmaCustom()
-resultsOverall <- data %>% filter(useMA == 1) %>% maResults(., rmaObject = rmaOverall, bias = T)
+rmaOverall <- data %>% rmaCustom()
+resultsOverall <- data %>% maResults(., rmaObject = rmaOverall, bias = T)
 resultsOverall
 
 #'## Forest plot
@@ -328,7 +328,7 @@ quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
 
 #'# Methods
 namesObjectsMethods <- c("Physical temperature manipulation", "Visual/verbal temperature prime", "Outside temperature", "Temperature estimate as DV", "Subjective warmth judgment as DV")
-dataObjectsMethods <- list("Physical temperature manipulation" = datPhysTempMan[datPhysTempMan$useMA == 1,], "Visual/verbal temperature prime" = datVisVerbTempPrime[datVisVerbTempPrime$useMA == 1,], "Outside temperature" = datOutTemp[datOutTemp$useMA == 1,], "Temperature estimate as DV" = datTempEst[datTempEst$useMA == 1,], "Subjective warmth judgment as DV" = datSubjWarmJudg[datSubjWarmJudg$useMA == 1,])
+dataObjectsMethods <- list("Physical temperature manipulation" = datPhysTempMan, "Visual/verbal temperature prime" = datVisVerbTempPrime, "Outside temperature" = datOutTemp, "Temperature estimate as DV" = datTempEst, "Subjective warmth judgment as DV" = datSubjWarmJudg)
 rmaObjectsMethods <- setNames(lapply(dataObjectsMethods, function(x){rmaCustom(x)}), nm = namesObjectsMethods)
 
 #'## Moderator analysis
@@ -417,7 +417,7 @@ addpoly(rmaObjectsMethods$`Subjective warmth judgment as DV`[[1]], row = .3, mla
 #'
 #' Leaving out the Robotics and Neural Mechanisms, since k is too low
 namesObjectsCategories <- c("Emotion", "Interpersonal", "Person perception", "Group processes", "Moral judgment", "Self-regulation", "Cognitive processes", "Economic decision-making")
-dataObjectsCategories <- list("Emotion" = datEmotion[datEmotion$useMA == 1,], "Interpersonal" = datInterpersonal[datInterpersonal$useMA == 1,], "Person perception" = datPersonPerc[datPersonPerc$useMA == 1,], "Group processes" = datGroupProc[datGroupProc$useMA == 1,], "Moral judgment" = datMoralJudg[datMoralJudg$useMA == 1,], "Self-regulation" = datSelfReg[datSelfReg$useMA == 1,], "Cognitive processes" = datCognProc[datCognProc$useMA == 1,], "Economic decision-making" = datDM[datDM$useMA == 1,])
+dataObjectsCategories <- list("Emotion" = datEmotion, "Interpersonal" = datInterpersonal, "Person perception" = datPersonPerc, "Group processes" = datGroupProc, "Moral judgment" = datMoralJudg, "Self-regulation" = datSelfReg, "Cognitive processes" = datCognProc, "Economic decision-making" = datDM)
 rmaObjectsCategories <- setNames(lapply(dataObjectsCategories, function(x){rmaCustom(x)}), nm = namesObjectsCategories)
 
 #'## Results for different categories
@@ -583,8 +583,8 @@ RVEmodelModRct <- data %>% filter(useMA == 1) %$% list("test" = coef_test(rmaMod
 modRct <- list("Model results" = RVEmodelModRct, "RVE Wald test" = Wald_test(rmaModRct, constraints = constrain_equal(1:2), vcov = "CR2"))
 modRct
 
-datNonRnd <- data %>% filter(rct == 0 & useMA == 1)
-datRnd <- data %>% filter(rct == 1 & useMA == 1)
+datNonRnd <- data %>% filter(rct == 0)
+datRnd <- data %>% filter(rct == 1)
 
 namesObjectsRct <- c("Non-randomized", "Randomized")
 levels(data$rct) <- namesObjectsRct
@@ -760,3 +760,4 @@ c("Lattitude mean" = mean(dat$latitudeUniversity, na.rm = T), "Lattitude SD" = s
 # }
 # consIncons <- setNames(consIncons, nm = namesObjects)
 # consIncons
+

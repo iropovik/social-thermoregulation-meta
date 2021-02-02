@@ -233,7 +233,6 @@ data <- data %>% mutate(contrastAssimilation = case_when(effectCompPriming == 1 
                                                          effectCompPriming == 1 & direction == -1 ~ 2,
                                                          effectCompPriming == 2 & direction == 1 ~ 2,
                                                          effectCompPriming == 2 & direction == -1 ~ 1))
-
 datCompensatory <- data %>% filter(effectCompPriming == 1)
 datPriming <- data %>% filter(effectCompPriming == 2)
 
