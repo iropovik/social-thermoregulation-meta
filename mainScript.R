@@ -12,7 +12,7 @@
 #' ---
 
 #+ setup, include = FALSE
-knitr::opts_chunk$set(echo=FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 
 rm(list = ls())
 
@@ -35,8 +35,8 @@ side <- "right"
 test <- "one-tailed"
 
 # No of simulations for the permutation-based bias correction models and p-curve specifically
-nIterations <- 5000 # Set to 5 just to make code checking/running fast. For the final paper, it needs to be set to at least 1000 and run overnight.
-nIterationsPcurve <- 20
+nIterations <- 5000 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
+nIterationsPcurve <- 200
 
 # Controls for the multiple-parameter selection models 
 
@@ -104,13 +104,13 @@ funnel <- metafor::funnel
 #' We report results for both, PET and PEESE, with the first reported one being the primary (based on the conditional estimator).
 #' 
 #' **WAAP-WLS**
-#' Combined WAAP-WLS estimator (weighted average of the adequately powered - weighted least squares). The method tries to identify studies that are adequately powered to detect the meta-analytic effect.
-#' If there's none or only one such study, the methods falls back to WLS estimator (Stanley & Doucouliagos, 2015).
-#' If there are at least two, WAAP returns a WLS estimate based on only effects from those studies
+#' The combined WAAP-WLS estimator (weighted average of the adequately powered - weighted least squares) tries to identify studies that are adequately powered to detect the meta-analytic effect. 
+#' If there is less than two such studies, the method falls back to the WLS estimator (Stanley & Doucouliagos, 2015). If there are at least two adequately powered studies, WAAP returns a WLS estimate based on effects from only those studies.
 #' 
 #' type = 1: WAAP estimate, 2: WLS estimate. kAdequate = number of adequately powered studies
 #' 
 #' **p-uniform**
+#' P-uniform* is a selection model conceptually similar to p-curve. It makes use of the fact that p-values follow a uniform distribution at the true effect size while it includes also nonsignificant effect sizes.
 #' Permutation-based new version of p-uniform method, the so-called p-uniform* (van Aert, van Assen, 2021).
 #' 
 #' **p-curve**
@@ -148,6 +148,7 @@ addpoly(rmaAttachment[[1]], row = 0, mlab = "", cex = 1)
 #'## Funnel plot
 metafor::funnel(rmaAttachment[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor moderation by prior experiences in relationships")
 
+#'## P-curve plot
 quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
 
 # Effect type Compensatory vs Priming -------------------------------------
@@ -201,21 +202,20 @@ RVEmodelEffTypeCompCov <- data %>% filter(useMA == 1) %$% list("test" = coef_tes
 list("Model results" = RVEmodelEffTypeCompCov, "RVE Wald test" = Wald_test(rmaObjectEffTypeCompCov, constraints = constrain_equal(1:2), vcov = "CR2"))
 
 # Effect type plots -------------------------------------------------------------------
-
+dev.off()
+par(mar=c(4,4,1,2), mfrow=c(1,2))
 #'## Plots
 #'
-
 #'### Contour enhanced funnel plot
 #'#### Compensatory
-datCompensatory %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+datCompensatory %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 
 #'#### Priming
-datPriming %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei")
+datPriming %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 
 #'### Forest plots
 #'
 #'#### Compensatory
-par(mar=c(4,4,1,2), mfrow=c(1,2))
 datCompensatory %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
                                                   xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
                                                   subset = order(vi),        ### order by size of yi
@@ -242,8 +242,6 @@ datPriming %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1
                                              lty=c("solid","blank"))  ### remove horizontal line at top of plot
 title("Priming", cex.main = 1)
 addpoly(rmaObjects[[2]][[1]], row = -2, mlab = "", cex = 1, annotate = F)
-compPrimForest <- recordPlot()
-dev.off()
 
 #'### p-curve plots
 #'
@@ -273,6 +271,7 @@ if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(ex
 } else {
   dataObjects[[2]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
+dev.off()
 
 # Mood ----------------------------------------------------------
 #'# Mood
@@ -317,10 +316,10 @@ title("Overall effect", cex.main = 1)
 addpoly(rmaOverall[[1]], row = -3, mlab = "", cex = .5, annotate = FALSE)
 overallForest <- recordPlot()
 
+par(mar=c(4,4,1,2), mfrow=c(1,2))
 #'## Funnel plot
 metafor::funnel(rmaOverall[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Overall effect", xlim = c(-1.4, 1.7), steps = 7, digits = c(1,2))
 title("Overall effect", cex.main = 1)
-overallFunnel <- recordPlot()
 
 #'## p-curve plot
 quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
@@ -514,6 +513,7 @@ addpoly(rmaObjectsCategories$`Cognitive processes`[[1]], row = 0, mlab = "", cex
 datCognProc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
 title("Economic decision-making", cex.main = 1)
 addpoly(rmaObjectsCategories$`Economic decision-making`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
+dev.off()
 
 # Moderator/sensitivity analyses ------------------------------------------
 
