@@ -14,9 +14,6 @@ dat <- dat %>% modify_at(., .at = c("F", "beta", "t", "r", "chiSq", "df1", "df2"
 
 # Some data wrangling to get the right type of data (formatting of the raw dataset in Excel introduces a lot of junk otherwise)
 dat$pReported <- as.numeric(as.character(gsub("[^0-9.]", "", dat$pReported)))
-# CHECK ???
-
-# Transform moderators into factors and specify contrast coding .5, -.5
 
 # Which designs are present?
 table(dat$design, useNA="ifany")
@@ -115,7 +112,7 @@ dat %>% filter(finalDesign == "within.t") %>% select(gConv, gVarConv, dReported,
 # # PaperID 71 used mixed-effects models, couldn't convert, so using the reported d (converted to g)
 dat <- dat %>% mutate(gConv = ifelse(paperID == 71, (1 - (3/(4*reportedOverallN - 3))) * dReported, gConv),
                       gVarConv = ifelse(paperID == 71, (1 - (3/(4*reportedOverallN - 3))) * ((reportedOverallN)/(reportedOverallN/2 * reportedOverallN/2) + (dReported^2)/(2 * (reportedOverallN))), gVarConv))
- 
+
 # Betas in between-subjects designs ---------------------------------------
 
 #Betas in between-subjects designs (in ML, beta considered as covariate/confounding adjusted r, then using r to d conversion)
@@ -167,43 +164,42 @@ dat <- dat %>% mutate(ni = ifelse(is.na(ni) & !is.na(gConv), n1 + n2, ni),
                       nTerm = 2/ni)
 dat$result <- 1:nrow(dat)
 
-# # Multiply the ES by -1 if not in the predicted direction
+# Variable computations
+# # Multiply the ES by -1 if not in the opposite direction
 dat$yi <- NA
 dat$vi <- NA
 dat <- dat %>% mutate(yi = ifelse(!is.na(gConv) & !is.na(direction), direction * gConv, yi),
                       vi = ifelse(!is.na(gVarConv) & !is.na(direction), gVarConv, vi),
-                      label = paste(paperID, "/", studyID, "/", effectID, sep = ""))
+                      label = paste(paperID, "/", studyID, "/", effectID, sep = ""),
+                      ni = ifelse(is.na(ni) & !is.na(gConv), n1 + n2, ni),
+                      nTerm = 2/ni)
 
 dat %>% filter(useMA == 1) %>% select(result, yi, vi, direction, ni, p, design, finalDesign, reportedOverallN, df2, r, beta)
-
 dat %>% filter(ni != reportedOverallN) %>% select(ni, reportedOverallN, df2, nWarm, nCold, nControl)
-
 dat %>% filter(abs(dReported - gConv) > .2) %>% select(result, gConv, dReported)
-
-# F 19, 
-# t 43
+dat$result <- 1:nrow(dat)
 
 # Reconciliation of the substantive variables
 dat <- dat %>% rowwise() %>% mutate(
-physicalTemperatureManipulation_reconcil = median(c(physicalTemperatureManipulationElisa,	physicalTemperatureManipulationBill, physicalTemperatureManipulationBastien), na.rm = T),
-visualVerbalTemperaturePrime_reconcil = median(c(visualVerbalTemperaturePrimeElisa,	visualVerbalTemperaturePrimeBill, visualVerbalTemperaturePrimeBastien), na.rm = T),
-outsideTemperature_reconcil = median(c(outsideTemperatureElisa,	outsideTemperatureBill,	outsideTemperatureBastien), na.rm = T),
-temperatureEstimate_reconcil = median(c(temperatureEstimateElisa,	temperatureEstimateBill,	temperatureEstimateBastien), na.rm = T),
-subjectiveWarmthJudgment_reconcil = median(c(subjectiveWarmthJudgmentElisa,	subjectiveWarmthJudgmentBill,	subjectiveWarmthJudgmentBastien), na.rm = T),
-coreTemperatureMeasurement_reconcil = median(c(coreTemperatureMeasurementElisa,	coreTemperatureMeasurementBill,	coreTemperatureMeasurementBastien), na.rm = T),
-skinTemperatureMeasurement_reconcil = median(c(skinTemperatureMeasurementElisa,	skinTemperatureMeasurementBill,	skinTemperatureMeasurementBastien), na.rm = T),
-designFeaturesPrimingCompensatory_reconcil = median(c(designFeaturesPrimingCompensatoryElisa,	designFeaturesPrimingCompensatoryBill,	designFeaturesPrimingCompensatoryBastien), na.rm = T),
-categoryEmotion_reconcil = median(c(categoryEmotionElisa,	categoryEmotionBill,	categoryEmotionBastien), na.rm = T),
-categoryInterpersonal_reconcil = median(c(categoryInterpersonalElisa,	categoryInterpersonalBill,	categoryInterpersonalBastien), na.rm = T),
-categoryPersonPerception_reconcil = median(c(categoryPersonPerceptionElisa,	categoryPersonPerceptionBill,	categoryPersonPerceptionBastien), na.rm = T),
-categoryGroupProcesses_reconcil = median(c(categoryGroupProcessesElisa,	categoryGroupProcessesBill,	categoryGroupProcessesBastien), na.rm = T),
-categoryRobotics_reconcil = median(c(categoryRoboticsElisa,	categoryRoboticsBill,	categoryRoboticsBastien), na.rm = T),
-categoryMoralJudgment_reconcil = median(c(categoryMoralJudgmentElisa,	categoryMoralJudgmentBill,	categoryMoralJudgmentBastien), na.rm = T),
-categorySelfRegulation_reconcil = median(c(categorySelfRegulationElisa,	categorySelfRegulationBill,	categorySelfRegulationBastien), na.rm = T),
-categoryCognitiveProcesses_reconcil = median(c(categoryCognitiveProcessesElisa,	categoryCognitiveProcessesBill,	categoryCognitiveProcessesBastien), na.rm = T),
-categoryJudgmentAndDecisionMaking_reconcil = median(c(categoryJudgmentAndDecisionMakingElisa,	categoryJudgmentAndDecisionMakingBill,	categoryJudgmentAndDecisionMakingBastien), na.rm = T),
-categoryNeuralMechanisms_reconcil = median(c(categoryNeuralMechanismsElisa,	categoryNeuralMechanismsBill,	categoryNeuralMechanismsBastien), na.rm = T),
-sourceTargetDirectionality_reconcil = median(c(sourceTargetDirectionalityElisa,	sourceTargetDirectionalityBill,	sourceTargetDirectionalityBastien), na.rm = T)
+  physicalTemperatureManipulation_reconcil = median(c(physicalTemperatureManipulationElisa,	physicalTemperatureManipulationBill, physicalTemperatureManipulationBastien), na.rm = T),
+  visualVerbalTemperaturePrime_reconcil = median(c(visualVerbalTemperaturePrimeElisa,	visualVerbalTemperaturePrimeBill, visualVerbalTemperaturePrimeBastien), na.rm = T),
+  outsideTemperature_reconcil = median(c(outsideTemperatureElisa,	outsideTemperatureBill,	outsideTemperatureBastien), na.rm = T),
+  temperatureEstimate_reconcil = median(c(temperatureEstimateElisa,	temperatureEstimateBill,	temperatureEstimateBastien), na.rm = T),
+  subjectiveWarmthJudgment_reconcil = median(c(subjectiveWarmthJudgmentElisa,	subjectiveWarmthJudgmentBill,	subjectiveWarmthJudgmentBastien), na.rm = T),
+  coreTemperatureMeasurement_reconcil = median(c(coreTemperatureMeasurementElisa,	coreTemperatureMeasurementBill,	coreTemperatureMeasurementBastien), na.rm = T),
+  skinTemperatureMeasurement_reconcil = median(c(skinTemperatureMeasurementElisa,	skinTemperatureMeasurementBill,	skinTemperatureMeasurementBastien), na.rm = T),
+  designFeaturesPrimingCompensatory_reconcil = median(c(designFeaturesPrimingCompensatoryElisa,	designFeaturesPrimingCompensatoryBill,	designFeaturesPrimingCompensatoryBastien), na.rm = T),
+  categoryEmotion_reconcil = median(c(categoryEmotionElisa,	categoryEmotionBill,	categoryEmotionBastien), na.rm = T),
+  categoryInterpersonal_reconcil = median(c(categoryInterpersonalElisa,	categoryInterpersonalBill,	categoryInterpersonalBastien), na.rm = T),
+  categoryPersonPerception_reconcil = median(c(categoryPersonPerceptionElisa,	categoryPersonPerceptionBill,	categoryPersonPerceptionBastien), na.rm = T),
+  categoryGroupProcesses_reconcil = median(c(categoryGroupProcessesElisa,	categoryGroupProcessesBill,	categoryGroupProcessesBastien), na.rm = T),
+  categoryRobotics_reconcil = median(c(categoryRoboticsElisa,	categoryRoboticsBill,	categoryRoboticsBastien), na.rm = T),
+  categoryMoralJudgment_reconcil = median(c(categoryMoralJudgmentElisa,	categoryMoralJudgmentBill,	categoryMoralJudgmentBastien), na.rm = T),
+  categorySelfRegulation_reconcil = median(c(categorySelfRegulationElisa,	categorySelfRegulationBill,	categorySelfRegulationBastien), na.rm = T),
+  categoryCognitiveProcesses_reconcil = median(c(categoryCognitiveProcessesElisa,	categoryCognitiveProcessesBill,	categoryCognitiveProcessesBastien), na.rm = T),
+  categoryJudgmentAndDecisionMaking_reconcil = median(c(categoryJudgmentAndDecisionMakingElisa,	categoryJudgmentAndDecisionMakingBill,	categoryJudgmentAndDecisionMakingBastien), na.rm = T),
+  categoryNeuralMechanisms_reconcil = median(c(categoryNeuralMechanismsElisa,	categoryNeuralMechanismsBill,	categoryNeuralMechanismsBastien), na.rm = T),
+  sourceTargetDirectionality_reconcil = median(c(sourceTargetDirectionalityElisa,	sourceTargetDirectionalityBill,	sourceTargetDirectionalityBastien), na.rm = T)
 )
 
 dat <- dat %>% mutate(categoryCognitiveProcesses_reconcil = ifelse(categoryCognitiveProcesses_reconcil == .5, categoryCognitiveProcesses, categoryCognitiveProcesses_reconcil),
@@ -211,8 +207,54 @@ dat <- dat %>% mutate(categoryCognitiveProcesses_reconcil = ifelse(categoryCogni
 
 
 # Recoding of the method type dummies into a categorical variable for moderator analysis
-methodRecoding <- dat %>% select(contains("_reconcil") & !contains("category")) %>% select(1:7) # select the variables
+methodRecoding <- dat %>% select(physicalTemperatureManipulation_reconcil,
+                                 visualVerbalTemperaturePrime_reconcil,
+                                 outsideTemperature_reconcil,
+                                 temperatureEstimate_reconcil,
+                                 subjectiveWarmthJudgment_reconcil) # select the variables
 howManyMethods <- methodRecoding %>% rowSums() # find effects with more than one assigned method
 dat$method <- ifelse(howManyMethods == 1, factor(max.col(methodRecoding)), NA) # filter those out and create a categorical variable
 
 dat$studentSample <- ifelse(dat$sampleType == "student", 1, ifelse(dat$sampleType == "general", 0, NA))
+
+# Remove outliers (based on the results from the maDiag script)
+dat <- dat %>% filter(!result %in% c(194))
+
+# Create dat objects
+# Mood and overall effect data objects
+datMood <- dat %>% filter(positiveNegativeAffect == 1)
+datAttachment <- dat %>% filter(moderationAttachment == 1)
+data <- dat %>% filter(positiveNegativeAffect != 1)
+
+# Effect type data objects
+data$effectCompPriming <- ifelse((data$effectTypeNeitherCompensatoryPrimingBoth == 0) | (data$effectTypeNeitherCompensatoryPrimingBoth == 3), yes = NA, no = data$effectTypeNeitherCompensatoryPrimingBoth)
+data$effectCompPriming <- relevel(factor(data$effectCompPriming), ref = "1")
+data <- data %>% mutate(contrastAssimilation = case_when(effectCompPriming == 1 & direction == 1 ~ 1,
+                                                         effectCompPriming == 1 & direction == -1 ~ 2,
+                                                         effectCompPriming == 2 & direction == 1 ~ 2,
+                                                         effectCompPriming == 2 & direction == -1 ~ 1))
+
+datCompensatory <- data %>% filter(effectCompPriming == 1)
+datPriming <- data %>% filter(effectCompPriming == 2)
+
+# Method data objects
+datPhysTempMan <- data %>% filter(physicalTemperatureManipulation_reconcil == 1)
+datVisVerbTempPrime <- data %>% filter(visualVerbalTemperaturePrime_reconcil == 1)
+datOutTemp <- data %>% filter(outsideTemperature_reconcil == 1)
+datTempEst <- data %>% filter(temperatureEstimate_reconcil == 1)
+datSubjWarmJudg <- data %>% filter(subjectiveWarmthJudgment_reconcil == 1)
+datCoreTempMeas <- data %>% filter(coreTemperatureMeasurement_reconcil == 1)
+datSkinTempMeas <- data %>% filter(skinTemperatureMeasurement_reconcil == 1)
+
+# Category data objects
+datEmotion <- data %>% filter(categoryEmotion_reconcil == 1)
+datInterpersonal <- data %>% filter(categoryInterpersonal_reconcil == 1)
+datPersonPerc <- data %>% filter(categoryPersonPerception_reconcil == 1)
+datGroupProc <- data %>% filter(categoryGroupProcesses_reconcil == 1)
+datRobotics <- data %>% filter(categoryRobotics_reconcil == 1)
+datMoralJudg <- data %>% filter(categoryMoralJudgment_reconcil == 1)
+datSelfReg <- data %>% filter(categorySelfRegulation_reconcil == 1)
+datCognProc <- data %>% filter(categoryCognitiveProcesses_reconcil == 1)
+datDM <- data %>% filter(categoryJudgmentAndDecisionMaking_reconcil == 1)
+datNeurMech <- data %>% filter(categoryNeuralMechanisms_reconcil == 1)
+

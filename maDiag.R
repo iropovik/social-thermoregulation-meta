@@ -10,6 +10,7 @@ ma.uni <- dat %>% filter(!is.na(yi)) %$% rma(yi = yi, vi = vi, method = "REML", 
 #+eval = FALSE
 # MA diagnostics
 baujat(ma.uni, symbol = "slab")
+dat %>% filter(result == 194) %>% view()
 
 #+eval = FALSE
 #fit FE model to all possible subsets

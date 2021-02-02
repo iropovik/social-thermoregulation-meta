@@ -85,6 +85,7 @@ propSig <- function(p.values = NA){
 pcurvePerm <- function(data, esEstimate = FALSE, plot = FALSE, nIterations = nIterationsPcurve){
   resultIDpcurve <- list(NA)
   resultPcurve <- matrix(ncol = 11, nrow = nIterationsPcurve)
+  set.seed(1)
   for(i in 1:nIterationsPcurve){
     datPcurve <- data[!duplicated.random(data$study) & data$focalVariable == 1 & !is.na(data$p),]
     metaPcurve <- metagen(TE = yi, seTE = sqrt(vi), n.e = ni, data = datPcurve)
@@ -94,7 +95,7 @@ pcurvePerm <- function(data, esEstimate = FALSE, plot = FALSE, nIterations = nIt
       next
     } else {
       resultPcurve[i,] <- c("iterationNo" = i, "rightskew" = modelPcurve$pcurveResults[1,], "flatness" = modelPcurve$pcurveResults[2,])  
-      }
+    }
     resultIDpcurve[[i]] <- datPcurve$result
   }
   colnames(resultPcurve) <- c("iterationNo", "rightskew.pBinomial", "rightskew.zFull", "rightskew.pFull", "rightskew.zHalf", "rightskew.pHalf", "flatness.pBinomial", "flatness.zFull", "flatness.pFull", "flatness.zHalf", "flatness.pHalf")
@@ -106,30 +107,40 @@ pcurvePerm <- function(data, esEstimate = FALSE, plot = FALSE, nIterations = nIt
 
 # Multiple-parameter selection models -------------------------------------
 # 4/3-parameter selection model (4PSM/3PSM)
-selectionModel <- function(data, minPvalues = 4){
+selectionModel <- function(data, minNoPvals = minPvalues, nIteration = nIterations, fallback = FALSE){
   data <- data %>% filter(useMA == 1)
-  mydat <<- data[!duplicated.random(data$study) & data$focalVariable == 1,]
-  res <- rma(yi, vi, data = mydat)
-  fourFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, .5, 1)),
-                      error = function(e) NULL)
-  fourOut <- c("est" = fourFit$beta, "se" = fourFit$se, "zvalue" = fourFit$zval, "pvalue" = fourFit$pval, "ciLB" = fourFit$ci.lb, "ciUB" = fourFit$ci.ub, "k" = fourFit$k, "steps" = length(fourFit$steps))
-  
-  # if <= min.pvalues p-values in an interval: return NULL
-  pTable <- table(cut(mydat$p, breaks = c(0, .025, 0.5, 1)))
-  
-  if (any(pTable < minPvalues) | is.null(fourFit)) {
-    threeFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, 1)),
-                         error = function(e) NULL)
-    threeOut <- if(is.null(threeFit)){
-      next
-    } else {
-      round(c("est" = threeFit$beta, "se" = threeFit$se, "zvalue" = threeFit$zval, "pvalue" = threeFit$pval, "ciLB" = threeFit$ci.lb, "ciUB" = threeFit$ci.ub, "k" = threeFit$k, "steps" = length(threeFit$steps)), 3)
+  resultSM <- matrix(ncol = 8, nrow = nIteration)
+  set.seed(1)
+  for(i in 1:nIteration){
+    mydat <<- data[!duplicated.random(data$study) & data$focalVariable == 1,]
+    res <- rma(yi, vi, data = mydat)
+    # if <= min.pvalues p-values in an interval: return NULL
+    pTable <- table(cut(mydat$p, breaks = c(0, .05, 0.5, 1)))
+    if(fallback == TRUE | any(pTable < minNoPvals)){
+      threeFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, 1), alternative = "greater"),
+                           error = function(e) NULL)
+      threeOut <- if(is.null(threeFit)){
+        next
+      } else {
+        round(c("est" = threeFit$beta, "se" = threeFit$se, "zvalue" = threeFit$zval, "pvalue" = threeFit$pval, "ciLB" = threeFit$ci.lb, "ciUB" = threeFit$ci.ub, "k" = threeFit$k, "steps" = length(threeFit$steps)), 3)
+      }
+      out <- threeOut
+    } else { 
+      fourFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, .5, 1), alternative = "greater"),
+                          error = function(e) NULL)
+      fourOut <- c("est" = fourFit$beta, "se" = fourFit$se, "zvalue" = fourFit$zval, "pvalue" = fourFit$pval, "ciLB" = fourFit$ci.lb, "ciUB" = fourFit$ci.ub, "k" = fourFit$k, "steps" = length(fourFit$steps))  
+      if (is.null(fourFit)){
+        out <- threeOut
+      } else {
+        out <- fourOut %>% round(., 3)
+      }
     }
-    out <- threeOut
-  } else {
-    out <- fourOut %>% round(., 3)
+    resultSM[i,] <- out  
   }
-  out
+  colnames(resultSM) <- c("est", "se", "zvalue", "pvalue", "ciLB", "ciUB", "k", "steps")
+  resultSM <- resultSM %>% data.frame() %>% na.omit() %>% arrange(est) %>% slice(ceiling(n()/2)) %>% unlist()
+  resultSM <<- resultSM
+  resultSM
 }
 
 # PET-PEESE ---------------------------------------------------------------
@@ -158,10 +169,10 @@ petPeese <- function(data, nBased = TRUE, selModAsCondEst = TRUE){  # if nBased 
   
   if(selModAsCondEst == TRUE){
     ifelse(resultSM["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultSM["est"] > 0,
-           return(peese.out),  return(pet.out))
+           return(c(peese.out, pet.out)),  return(c(pet.out, peese.out)))
   } else {
     ifelse(pet$pval[1] < alpha & ifelse(exists("side") & side == "left", -1, 1) * pet$b[1] > 0,
-           return(peese.out),  return(pet.out))
+           return(c(peese.out, pet.out)),  return(c(pet.out, peese.out)))
   } 
 }
 
@@ -247,21 +258,15 @@ powerEst <- function(data = NA){
 bias <- function(data = NA, rmaObject = NA){
   # Correlation between the ES and precision (SE)
   esPrec <- cor(rmaObject[[1]]$yi, sqrt(rmaObject[[1]]$vi), method = "kendall")
+  
   # Small-study effects correction
   # 3-parameter selection model
-  resultSM <- matrix(ncol = 8, nrow = nIterations)
-  for(i in 1:nIterations){
-    resultSM[i,] <- data %>% selectionModel(., minPvalues = 4)
-  }
-  colnames(resultSM) <- c("est", "se", "zvalue", "pvalue", "ciLB", "ciUB", "k", "steps")
-  resultSM <- resultSM %>% data.frame() %>% na.omit() %>% arrange(est) %>% slice(ceiling(n()/2)) %>% unlist()
-  resultSM <<- resultSM
+  resultSM <- selectionModel(data, minNoPvals = minPvalues, nIteration = nIterations, fallback = fallback)
   
   # PET-PEESE
   petPeeseOut <- petPeese(data)
   
   # WAAP-WLS
-
   waapWLSout <- data %>% filter(useMA == 1) %$% waapWLS(yi, vi)
   waapWLSout[1, 9:10] <- waapWLSout[2, 9:10]
   waapWLSout <- waapWLSout[1,]
@@ -271,6 +276,7 @@ bias <- function(data = NA, rmaObject = NA){
   
   # p-uniform* (van Aert & van Assen, 2021)
   resultPuniform <- matrix(ncol = 4, nrow = nIterations)
+  set.seed(1)
   for(i in 1:nIterations){
     data <- data %>% filter(useMA == 1)
     modelPuniform <- data[!duplicated.random(data$study) & data$focalVariable == 1 & !is.na(data$vi),] %$% puni_star(yi = yi, vi = vi, alpha = alpha, side = side, method = "ML")
@@ -294,7 +300,7 @@ bias <- function(data = NA, rmaObject = NA){
 maResults <- function(rmaObject = NA, data = NA, bias = T){
   list(
     "RMA results with model-based SEs" = rmaObject[[2]],
-    "RVE SEs with Satterthwaite small-sample correction" = conf_int(rmaObject[[2]], vcov = "CR2", cluster = data$study),
+    "RVE SEs with Satterthwaite small-sample correction" = list("test" = coef_test(rmaObject[[2]], vcov = "CR2", cluster = data$study), "CIs" = conf_int(rmaObject[[2]], vcov = "CR2", cluster = data$study)),
     "Prediction interval" = pi95(rmaObject),
     "Heterogeneity" = heterogeneity(rmaObject),
     "Proportion of significant results" = propSig(data[data$useMA == 1,]$p),
@@ -307,6 +313,39 @@ biasResults <- function(rmaObject = NA, data = NA){
     "Publication bias" = bias(data, rmaObject),
     "Power for detecting SESOI and bias-corrected parameter estimates" = powerEst(data))
 }
+
+maResultsTable <- function(maResultsObject, metaAnalysis = TRUE, bias = TRUE){
+  if(bias == TRUE & metaAnalysis == TRUE){
+    noquote(c(
+      "k" = as.numeric(maResultsObject[[1]]$k.all),
+      "g [95% CI]" = paste(round(as.numeric(maResultsObject[[2]]$test$beta), 2), " [", round(maResultsObject[[2]]$CIs$CI_L, 2), ", ", round(maResultsObject[[2]]$CIs$CI_U, 2), "]", sep = ""),
+      "SE" = round(maResultsObject[[2]]$test$SE, 2),
+      round(maResultsObject[[4]]["Tau"], 2),
+      "I^2" = paste(round(maResultsObject[[4]]["I^2"], 0), "%", sep = ""),
+      "3PSM est [95% CI]" = paste(round(maResultsObject[[6]][["4/3PSM"]]["est"], 2), " [", round(maResultsObject[[6]][["4/3PSM"]]["ciLB"], 2), ", ", round(maResultsObject[[6]][["4/3PSM"]]["ciUB"], 2), "]", sep = ""),
+      "3PSM" = round(maResultsObject[[6]][["4/3PSM"]]["pvalue"], 3),
+      "PET-PEESE est [95% CI]" = paste(round(maResultsObject[[6]][["PET-PEESE"]][1], 2), " [", round(maResultsObject[[6]][["PET-PEESE"]][5], 2), ", ", round(maResultsObject[[6]][["PET-PEESE"]][6], 2), "]", sep = ""),
+      "PET-PEESE" = round(maResultsObject[[6]][["PET-PEESE"]][4], 3)
+    ))
+  } else if (metaAnalysis == FALSE & bias == TRUE) {
+    noquote(c(
+      "3PSM est [95% CI]" = paste(round(maResultsObject[[1]][["4/3PSM"]]["est"], 2), " [", round(maResultsObject[[1]][["4/3PSM"]]["ciLB"], 2), ", ", round(maResultsObject[[1]][["4/3PSM"]]["ciUB"], 2), "]", sep = ""),
+      "3PSM" = round(maResultsObject[[1]][["4/3PSM"]]["pvalue"], 3),
+      "PET-PEESE est [95% CI]" = paste(round(maResultsObject[[1]][["PET-PEESE"]][1], 2), " [", round(maResultsObject[[1]][["PET-PEESE"]][5], 2), ", ", round(maResultsObject[[1]][["PET-PEESE"]][6], 2), "]", sep = ""),
+      "PET-PEESE" = round(maResultsObject[[1]][["PET-PEESE"]][4], 3)
+    ))
+  } else {
+    noquote(c(
+      "k" = as.numeric(maResultsObject[[1]]$k.all),
+      "g [95% CI]" = paste(round(as.numeric(maResultsObject[[2]]$test$beta), 2), " [", round(maResultsObject[[2]]$CIs$CI_L, 2), ", ", round(maResultsObject[[2]]$CIs$CI_U, 2), "]", sep = ""),
+      "SE" = round(maResultsObject[[2]]$test$SE, 2),
+      round(maResultsObject[[4]]["Tau"], 2),
+      "I^2" = paste(round(maResultsObject[[4]]["I^2"], 0), "%", sep = "")
+    ))
+  }
+}
+
+
 
 # Return format function
 # Code adapted from Carter, E. C., Schönbrodt, F. D., Hilgard, J., & Gervais, W. (2018). Correcting for bias in psychology: A comparison of meta-analytic methods. Retrieved from https://osf.io/rf3ys/.
