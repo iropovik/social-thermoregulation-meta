@@ -206,7 +206,7 @@ RVEmodelEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %
 list("Model results" = RVEmodelEffTypeCompCov, "RVE Wald test" = Wald_test(rmaObjectEffTypeCompCov, constraints = constrain_equal(1:2), vcov = "CR2"))
 
 # Effect type plots -------------------------------------------------------------------
-dev.off()
+#dev.off()
 par(mar=c(4,4,1,2), mfrow=c(1,2))
 #'## Plots
 #'
@@ -275,7 +275,7 @@ if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(ex
 } else {
   dataObjects[[2]] %>% mutate(yi = abs(yi)) %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
-dev.off()
+#dev.off()
 
 # Mood ----------------------------------------------------------
 #'# Mood
@@ -517,7 +517,7 @@ addpoly(rmaObjectsCategories$`Cognitive processes`[[1]], row = 0, mlab = "", cex
 datCognProc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
 title("Economic decision-making", cex.main = 1)
 addpoly(rmaObjectsCategories$`Economic decision-making`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
-dev.off()
+#dev.off()
 
 # Moderator/sensitivity analyses ------------------------------------------
 
@@ -542,15 +542,15 @@ RVEmodelModLat <- data %>% filter(useMA == 1) %$% list("test" = coef_test(rmaMod
 RVEmodelModLat
 
 #'### Compensatory effects moderated by lattitude
-viMatrixModComp <- datCompensatory %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
-rmaModLatComp <- datCompensatory %>% filter(useMA == 1) %$% rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModComp, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelModLatComp <- datCompensatory %>% filter(useMA == 1) %$% list("test" = coef_test(rmaModLatComp, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModLatComp, vcov = "CR2", test = "z", cluster = study))
+viMatrixModComp <- datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaModLatComp <- datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModComp, method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModLatComp <- datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaModLatComp, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModLatComp, vcov = "CR2", test = "z", cluster = study))
 RVEmodelModLatComp
 
 #'### Priming effects moderated by lattitude
-viMatrixModPrim <- datPriming %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
-rmaModLatPrim <- datPriming %>% filter(useMA == 1) %$% rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModPrim, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelModLatPrim <- datPriming %>% filter(useMA == 1) %$% list("test" = coef_test(rmaModLatPrim, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModLatPrim, vcov = "CR2", test = "z", cluster = study))
+viMatrixModPrim <- datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaModLatPrim <- datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% rma.mv(yi ~ scale(latitudeUniversity), V = viMatrixModPrim, method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModLatPrim <- datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaModLatPrim, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModLatPrim, vcov = "CR2", test = "z", cluster = study))
 RVEmodelModLatPrim
 
 #'### Mood effects moderated by lattitude
@@ -566,13 +566,13 @@ RVEmodelModGender <- data %>% filter(useMA == 1) %$% list("test" = coef_test(rma
 RVEmodelModGender
 
 #'### Compensatory effects moderated by gender ratio
-rmaModGenderComp <- datCompensatory %>% filter(useMA == 1) %$% rma.mv(yi ~ scale(percFemale), V = viMatrixModComp, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelModGenderComp <- datCompensatory %>% filter(useMA == 1) %$% list("test" = coef_test(rmaModGenderComp, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModGenderComp, vcov = "CR2", test = "z", cluster = study))
+rmaModGenderComp <- datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% rma.mv(yi ~ scale(percFemale), V = viMatrixModComp, method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModGenderComp <- datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaModGenderComp, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModGenderComp, vcov = "CR2", test = "z", cluster = study))
 RVEmodelModGenderComp
 
 #'### Priming effects moderated by gender ratio
-rmaModGenderPrim <- datPriming %>% filter(useMA == 1) %$% rma.mv(yi ~ scale(percFemale), V = viMatrixModPrim, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelModGenderPrim <- datPriming %>% filter(useMA == 1) %$% list("test" = coef_test(rmaModGenderPrim, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModGenderPrim, vcov = "CR2", test = "z", cluster = study))
+rmaModGenderPrim <- datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% rma.mv(yi ~ scale(percFemale), V = viMatrixModPrim, method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelModGenderPrim <- datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaModGenderPrim, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaModGenderPrim, vcov = "CR2", test = "z", cluster = study))
 RVEmodelModGenderPrim
 
 #'## Published status
