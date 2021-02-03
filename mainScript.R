@@ -36,8 +36,8 @@ side <- "right"
 test <- "one-tailed"
 
 # No of simulations for the permutation-based bias correction models and p-curve specifically
-nIterations <- 3 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
-nIterationsPcurve <- 3
+nIterations <- 5000 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
+nIterationsPcurve <- 200
 
 # Controls for the multiple-parameter selection models 
 
