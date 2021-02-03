@@ -140,6 +140,7 @@ list("Model results" = RVEmodelTargetDirection, "RVE Wald test" = Wald_test(rmaO
 #'# Moderation by prior experiences in relationships
 rmaAttachment <- datAttachment %>% mutate(useMA = 1) %>% rmaCustom()
 resultsAttachment <- datAttachment %>% mutate(useMA = 1) %>% maResults(., rmaObject = rmaAttachment, bias = T)
+resultsAttachment
 
 #'## Forest plot
 datAttachment %$% forest(yi, vi, subset = order(yi), slab = result)
@@ -155,8 +156,8 @@ quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
 # Effect type Compensatory vs Priming -------------------------------------
 #'# Effect type
 if(contrAssimConceptualization == 1){
-  datCompensatory <- data %>% filter(contrastAssimilation == 1)
-  datPriming <- data %>% filter(contrastAssimilation == 2)
+  datCompensatory <- data %>% filter(contrastAssimilation == 1) %>% mutate(yi = abs(yi))
+  datPriming <- data %>% filter(contrastAssimilation == 2) %>% mutate(vi = abs(vi))
   data$effectCompPriming <- data$contrastAssimilation
   paste("The compensatory vs priming effects conceptualized by the actual direction of the effect as contrast vs. assimilation")
 } else {
@@ -186,19 +187,22 @@ resultsEffType$Compensatory
 #'## Priming
 resultsEffType$Priming
 
+#'### Table 1
+resultsEffType %>% map(maResultsTable, bias = T)# %>% unlist() %>% t() %>% view()
+
 #'## Comparison of effect types
 
 #'### Model without covariates
-viMatrixEffTypeComp <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
-rmaObjectEffTypeComp <- data %>% filter(useMA == 1) %$% rma.mv(yi ~ 0 + factor(effectCompPriming), V = viMatrixEffTypeComp, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelEffTypeComp <- data %>% filter(useMA == 1) %$% list("test" = coef_test(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = study))
+viMatrixEffTypeComp <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaObjectEffTypeComp <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% rma.mv(yi ~ 0 + factor(effectCompPriming), V = viMatrixEffTypeComp, method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelEffTypeComp <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaObjectEffTypeComp, vcov = "CR2", test = "z", cluster = study))
 list("Model results" = RVEmodelEffTypeComp, "RVE Wald test" = Wald_test(rmaObjectEffTypeComp, constraints = constrain_equal(1:2), vcov = "CR2"))
 
 #'### Model with covariates
 #' Controlling for design-related factors that are prognostic w.r.t. the effect sizes (i.e., might vary across moderator categories), namely rct, published, sourceTargetDirectionality, and studentSample. 
-viMatrixEffTypeCompCov <- data %>% filter(useMA == 1) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
-rmaObjectEffTypeCompCov <- data %>% filter(useMA == 1) %$% rma.mv(yi ~ 0 + factor(effectCompPriming) + rct + published +  sourceTargetDirectionality_reconcil + studentSample, V = viMatrixEffTypeCompCov, method = "REML", random = ~ 1|study/result, sparse = TRUE)
-RVEmodelEffTypeCompCov <- data %>% filter(useMA == 1) %$% list("test" = coef_test(rmaObjectEffTypeCompCov, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaObjectEffTypeCompCov, vcov = "CR2", test = "z", cluster = study))
+viMatrixEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% impute_covariance_matrix(vi, cluster = study, r = rho, smooth_vi = TRUE)
+rmaObjectEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% rma.mv(yi ~ 0 + factor(effectCompPriming) + rct + published +  sourceTargetDirectionality_reconcil + studentSample, V = viMatrixEffTypeCompCov, method = "REML", random = ~ 1|study/result, sparse = TRUE)
+RVEmodelEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaObjectEffTypeCompCov, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaObjectEffTypeCompCov, vcov = "CR2", test = "z", cluster = study))
 list("Model results" = RVEmodelEffTypeCompCov, "RVE Wald test" = Wald_test(rmaObjectEffTypeCompCov, constraints = constrain_equal(1:2), vcov = "CR2"))
 
 # Effect type plots -------------------------------------------------------------------
@@ -208,15 +212,15 @@ par(mar=c(4,4,1,2), mfrow=c(1,2))
 #'
 #'### Contour enhanced funnel plot
 #'#### Compensatory
-datCompensatory %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
+datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 
 #'#### Priming
-datPriming %>% filter(useMA == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
+datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 
 #'### Forest plots
 #'
 #'#### Compensatory
-datCompensatory %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
                                                   xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
                                                   subset = order(vi),        ### order by size of yi
                                                   slab = NA, annotate = FALSE, ### remove study labels and annotations
@@ -230,7 +234,7 @@ title("Compensatory", cex.main = 1)
 addpoly(rmaObjects[[1]][[1]], row = 0, mlab = "", cex = 1, annotate = F)
 
 #'#### Priming
-datPriming %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
                                              xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
                                              subset = order(vi),        ### order by size of yi
                                              slab = NA, annotate = FALSE, ### remove study labels and annotations
@@ -259,17 +263,17 @@ quiet(pcurveMod(metaResultsPcurve$Priming, effect.estimation = FALSE, plot = TRU
 #'#### Compensatory
 quiet(petPeese(datCompensatory))
 if(resultsEffType[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[1]]$`Publication bias`$`4/3PSM`["est"] > 0){
-  dataObjects[[1]] %$% plot(nTerm, yi, main = "PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
+  dataObjects[[1]] %>% mutate(yi = abs(yi)) %$% plot(nTerm, yi, main = "PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
 } else {
-  dataObjects[[1]] %$% plot(sqrt(nTerm), yi, main = "PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
+  dataObjects[[1]] %>% mutate(yi = abs(yi)) %$% plot(sqrt(nTerm), yi, main = "PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[1]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
 
 #'#### Priming
 quiet(petPeese(datPriming))
 if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0){
-  dataObjects[[2]] %$% plot(nTerm, yi, main="PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
+  dataObjects[[2]] %>% mutate(yi = abs(yi)) %$% plot(nTerm, yi, main="PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
 } else {
-  dataObjects[[2]] %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
+  dataObjects[[2]] %>% mutate(yi = abs(yi)) %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
 dev.off()
 
