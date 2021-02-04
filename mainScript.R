@@ -1,5 +1,5 @@
 #' ---
-#' title: "Social Thermoregulation meta-analysis"
+#' title: "Social Thermoregulation Meta-analysis - Supplementary analysis outputs"
 #' author: "Ivan Ropovik"
 #' date: "`r Sys.Date()`"
 #' output:
@@ -36,8 +36,9 @@ side <- "right"
 test <- "one-tailed"
 
 # No of simulations for the permutation-based bias correction models and p-curve specifically
-nIterations <- 5000 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
-nIterationsPcurve <- 200
+nIterations <- 3 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
+nIterationsPcurve <- 3
+nIterationVWsensitivity <- 3 # Number of iterations for the Vevea & Woods (2005) step function model sensitivity analysis 
 
 # Controls for the multiple-parameter selection models 
 
@@ -58,15 +59,19 @@ contrAssimConceptualization <- 1
 source("functions.R")
 source("pcurvePlotOption.R")
 source("esConversion.R")
-
 funnel <- metafor::funnel
+
 # GRIM & GRIMMER Test -----------------------------------------------------
 # grimAndGrimmer(dat)
 
-# Meta-analysis -----------------------------------------------------------
-
-#'# Meta-analysis results
-
+#' **This is the supplementary analytic output for the paper Social Thermoregulation: A Meta-analysis by IJzerman et al. **
+#' 
+#' **It reports detailed results for all models reported in the paper. The analytic R script by which this html report was generated can be found on the project's OSF page at: [LINK].**
+#' 
+#' ------------------------------------
+#' 
+#' **Brief information about the methods used in the analysis:**
+#' 
 #' **RMA results with model-based SEs**
 #'k = number of studies; sqrt in "Variance components" = tau, the standard deviation of true effects; estimate in "Model results" = naive MA estimate
 #'
@@ -81,21 +86,20 @@ funnel <- metafor::funnel
 #'
 #' **Heterogeneity**
 #' Tau can be interpreted as the total amount of heterogeneity in the true effects. 
-#' I^2$ represents the ratio of true heterogeneity to total variance across the observed effect estimates. Estimates calculated by 2 approaches are reported.
+#' I^2$ represents the ratio of true heterogeneity to total variance across the observed effect estimates. Estimates calculated by two approaches are reported.
 #' This is followed by separate estimates of between- and within-cluster heterogeneity and estimated intra-class correlation of underlying true effects.
 #' 
 #' **Proportion of significant results**
 #' What proportion of effects were statistically at the alpha level of .05.
 #' 
 #' **ES-precision correlation**
-#' Kendalls's correlation between the ES and precision
+#' Kendalls's correlation between the ES and precision.
 #' 
 #' **4/3PSM**
 #' Applies a permutation-based, step-function 4-parameter selection model (one-tailed p-value steps = c(.025, .5, 1)). 
 #' Falls back to 3-parameter selection model if at least one of the three p-value intervals contains less than 5 p-values.
-#' 
-#' pvalue = p-value testing H0 that the effect is zero. ciLB and ciUB are lower and upper bound of the CI. k = number of studies. steps = 3 means that the 4PSM was applied, 2 means that the 3PSM was applied.
 #' For this meta-analysis, we applied 3-parameter selection model by default as there were only 11 independent effects in the opposite direction overall (6%), causing the estimates to be unstable across iterations.
+#' pvalue = p-value testing H0 that the effect is zero. ciLB and ciUB are lower and upper bound of the CI. k = number of studies. steps = 3 means that the 4PSM was applied, 2 means that the 3PSM was applied.
 #' 
 #' **PET-PEESE**
 #' Estimated effect size of an infinitely precise study. Using 4/3PSM as the conditional estimator instead of PET (can be changed to PET). If the PET-PEESE estimate is in the opposite direction, the effect can be regarded nil. 
@@ -115,7 +119,7 @@ funnel <- metafor::funnel
 #' Permutation-based new version of p-uniform method, the so-called p-uniform* (van Aert, van Assen, 2021).
 #' 
 #' **p-curve**
-#' Permutation-based p-curve method. Output should be pretty self-explanatory.
+#' Permutation-based p-curve method. Output should be self-explanatory. For more info see p-curve.com
 #' 
 #' **Power for detecting SESOI and bias-corrected parameter estimates**
 #' Estimates of the statistical power for detecting a smallest effect sizes of interest equal to .20, .50, and .70 in SD units (Cohen's d). 
@@ -125,6 +129,32 @@ funnel <- metafor::funnel
 #' To handle dependencies among the effects, the 4PSM, p-curve, p-uniform are implemented using a permutation-based procedure, randomly selecting only one focal effect (i.e., excluding those which were not coded as being focal) from a single study and iterating nIterations times.
 #' Lastly, the procedure selects the result with the median value of the ES estimate (4PSM, p-uniform) or median z-score of the full p-curve (p-curve).
 #' 
+
+
+# Descriptives ------------------------------------------------------------
+
+#'# Descriptives
+#'
+#'## Sample sizes
+#'
+#'### N of effects
+dat %>% filter(useMA == 1 & !is.na(yi)) %>% nrow()
+
+#'### N of studies
+dat %>% filter(useMA == 1 | focalVariable == 1) %$% length(unique(.$study))
+
+#'###  N of papers
+dat %>% filter(useMA == 1 | focalVariable == 1) %$% length(unique(.$paperID))
+
+#'### N of effects eligible just for evidential value test
+dat %>% filter(useMA != 1, focalVariable == 1 & !is.na(p)) %>% nrow()
+
+#'### Median N across all the ES eligible for meta-analysis
+median(dat$ni[dat$useMA == 1], na.rm = T)
+
+# Meta-analysis -----------------------------------------------------------
+
+#'# Meta-analysis results
 
 # Directionality of social thermoregulation effects -----------------------
 
@@ -142,12 +172,12 @@ rmaAttachment <- datAttachment %>% mutate(useMA = 1) %>% rmaCustom()
 resultsAttachment <- datAttachment %>% mutate(useMA = 1) %>% maResults(., rmaObject = rmaAttachment, bias = T)
 resultsAttachment
 
-#'## Forest plot
+#'## Forest plot and Contour-enhanced funnel plot
+par(mfrow = c(1,2))
 datAttachment %$% forest(yi, vi, subset = order(yi), slab = result)
 title("Moderation by prior experiences in relationships")
 addpoly(rmaAttachment[[1]], row = 0, mlab = "", cex = 1)
 
-#'## Funnel plot
 metafor::funnel(rmaAttachment[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor moderation by prior experiences in relationships")
 
 #'## P-curve plot
@@ -207,61 +237,59 @@ RVEmodelEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %
 list("Model results" = RVEmodelEffTypeCompCov, "RVE Wald test" = Wald_test(rmaObjectEffTypeCompCov, constraints = constrain_equal(1:2), vcov = "CR2"))
 
 # Effect type plots -------------------------------------------------------------------
-#dev.off()
-par(mar=c(4,4,1,2), mfrow=c(1,2))
 #'## Plots
 #'
-#'### Contour enhanced funnel plot
-#'#### Compensatory
-datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
-
-#'#### Priming
-datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
-
 #'### Forest plots
-#'
-#'#### Compensatory
+par(mfrow = c(1,2))
 datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
-                                                  xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
-                                                  subset = order(vi),        ### order by size of yi
-                                                  slab = NA, annotate = FALSE, ### remove study labels and annotations
-                                                  efac = 0,                  ### remove vertical bars at end of CIs
-                                                  pch = 19,                  ### changing point symbol to filled circle
-                                                  col = "gray40",            ### change color of points/CIs
-                                                  psize = 1.5,                 ### increase point size
-                                                  cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
-                                                  lty=c("solid","blank"))  ### remove horizontal line at top of plot
+                                                                           xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+                                                                           subset = order(vi),        ### order by size of yi
+                                                                           slab = NA, annotate = FALSE, ### remove study labels and annotations
+                                                                           efac = 0,                  ### remove vertical bars at end of CIs
+                                                                           pch = 19,                  ### changing point symbol to filled circle
+                                                                           col = "gray40",            ### change color of points/CIs
+                                                                           psize = 1.5,                 ### increase point size
+                                                                           cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+                                                                           lty=c("solid","blank"))  ### remove horizontal line at top of plot
 title("Compensatory", cex.main = 1)
 addpoly(rmaObjects[[1]][[1]], row = 0, mlab = "", cex = 1, annotate = F)
 
-#'#### Priming
 datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
-                                             xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
-                                             subset = order(vi),        ### order by size of yi
-                                             slab = NA, annotate = FALSE, ### remove study labels and annotations
-                                             efac = 0,                  ### remove vertical bars at end of CIs
-                                             pch = 19,                  ### changing point symbol to filled circle
-                                             col = "gray40",            ### change color of points/CIs
-                                             psize = 3,                 ### increase point size
-                                             cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
-                                             lty=c("solid","blank"))  ### remove horizontal line at top of plot
+                                                                      xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+                                                                      subset = order(vi),        ### order by size of yi
+                                                                      slab = NA, annotate = FALSE, ### remove study labels and annotations
+                                                                      efac = 0,                  ### remove vertical bars at end of CIs
+                                                                      pch = 19,                  ### changing point symbol to filled circle
+                                                                      col = "gray40",            ### change color of points/CIs
+                                                                      psize = 3,                 ### increase point size
+                                                                      cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+                                                                      lty=c("solid","blank"))  ### remove horizontal line at top of plot
 title("Priming", cex.main = 1)
 addpoly(rmaObjects[[2]][[1]], row = -2, mlab = "", cex = 1, annotate = F)
 
-#'### p-curve plots
-#'
-#'#### Compensatory
-quiet(pcurveMod(metaResultsPcurve$Compensatory, effect.estimation = FALSE, plot = TRUE))
+#'### Contour-enhanced funnel plots
+par(mfrow = c(1,2))
+datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
+title("Compensatory", cex.main = 1)
 
-#'#### Priming
+datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
+title("Priming", cex.main = 1)
+
+
+#'### p-curve plots
+quiet(pcurveMod(metaResultsPcurve$Compensatory, effect.estimation = FALSE, plot = TRUE))
+title("Compensatory", cex.main = 1)
+
 quiet(pcurveMod(metaResultsPcurve$Priming, effect.estimation = FALSE, plot = TRUE))
+title("Priming", cex.main = 1)
+
 
 #'### PET-PEESE plots
 #'
-#' Using the sqrt(2/n) and 2/n terms instead of SE and var for PET and PEESE, respectively since modified sample-size based estimator was implemented (see https://www.jepusto.com/pet-peese-performance/).
+#' top = Compensatory, bottom = Priming
 #' 
-
-#'#### Compensatory
+#' Using the sqrt(2/n) and 2/n terms instead of SE and var for PET and PEESE, respectively since modified sample-size based estimator was implemented (see https://www.jepusto.com/pet-peese-performance/).
+par(mfrow = c(1,2))
 quiet(petPeese(datCompensatory))
 if(resultsEffType[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[1]]$`Publication bias`$`4/3PSM`["est"] > 0){
   dataObjects[[1]] %>% mutate(yi = abs(yi)) %$% plot(nTerm, yi, main = "PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
@@ -269,14 +297,12 @@ if(resultsEffType[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(ex
   dataObjects[[1]] %>% mutate(yi = abs(yi)) %$% plot(sqrt(nTerm), yi, main = "PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[1]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[1]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
 
-#'#### Priming
 quiet(petPeese(datPriming))
 if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0){
   dataObjects[[2]] %>% mutate(yi = abs(yi)) %$% plot(nTerm, yi, main="PEESE", xlab = "2/n", ylab = "Effect size", pch = 19, cex.main = 2, cex = .30, xaxs = "i")
 } else {
   dataObjects[[2]] %>% mutate(yi = abs(yi)) %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
-#dev.off()
 
 # Mood ----------------------------------------------------------
 #'# Mood
@@ -286,12 +312,12 @@ rmaMood <- datMood %>% rmaCustom()
 resultsMood <- datMood %>% maResults(., rmaObject = rmaMood, bias = F)
 resultsMood
 
-#'## Forest plot
+#'## Forest plot and Contour-enhanced funnel plot
+par(mfrow = c(1,2))
 datMood %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
 title("Mood")
 addpoly(rmaMood[[1]], row = 0, mlab = "", cex = 1)
 
-#'## Funnel plot
 metafor::funnel(rmaMood[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Mood")
 
 # Overall effect ----------------------------------------------------------
@@ -321,13 +347,14 @@ title("Overall effect", cex.main = 1)
 addpoly(rmaOverall[[1]], row = -3, mlab = "", cex = .5, annotate = FALSE)
 overallForest <- recordPlot()
 
-par(mar=c(4,4,1,2), mfrow=c(1,2))
-#'## Funnel plot
+par(mfrow=c(1,2))
+#'## Contour-enhanced funnel plot
 metafor::funnel(rmaOverall[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Overall effect", xlim = c(-1.4, 1.7), steps = 7, digits = c(1,2))
 title("Overall effect", cex.main = 1)
 
 #'## p-curve plot
 quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
+title("Overall effect", cex.main = 1)
 
 # Subgroup analysis for different methods ---------------------------------
 
@@ -343,9 +370,9 @@ rmaObjectMethod <- data %>% filter(useMA == 1) %$% rma.mv(yi ~ 0 + method, V = v
 RVEmodelMethod <- data %>% filter(useMA == 1) %$% list("test" = coef_test(rmaObjectMethod, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaObjectMethod, vcov = "CR2", test = "z", cluster = study))
 list("Model results" = RVEmodelMethod, "RVE Wald test" = Wald_test(rmaObjectMethod, constraints = constrain_equal(1:5), vcov = "CR2"))
 
-#'## Results for different methods
+#'## Subgroup analysis
 #'
-#' Leaving out the Core temperature measurement and Skin temperature measurement, since k is too low
+#' Leaving out the Core temperature measurement and Skin temperature measurement, since k is too low.
 maResultsMethods <- list(NA)
 for(i in 1:length(rmaObjectsMethods)){
   maResultsMethods[[i]] <- maResults(data = dataObjectsMethods[[i]], rmaObject = rmaObjectsMethods[[i]], bias = F)
@@ -354,7 +381,7 @@ maResultsMethods <- setNames(maResultsMethods, nm = namesObjectsMethods)
 
 #'### Meta-analysis results
 #'
-#'#' Brief results
+#'#### Brief results
 maResultsMethods %>% map(maResultsTable, bias = F) %>% rbind.data.frame() %>% t() %>% noquote()
 #'#### Physical temperature manipulation
 maResultsMethods$`Physical temperature manipulation`
@@ -385,8 +412,8 @@ biasMethods$`Visual/verbal temperature prime`
 #'#### Temperature estimate as DV
 biasMethods$`Temperature estimate as DV`
 
-#'### Funnel plots
-par(mfrow=c(3,2), mar=c(4,3,4,3))
+#'### Contour-enhanced funnel plots
+par(mfrow = c(1,2))
 funnel(rmaObjectsMethods$`Physical temperature manipulation`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Physical temperature manipulation")
 funnel(rmaObjectsMethods$`Visual/verbal temperature prime`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Visual/verbal temperature prime")
 funnel(rmaObjectsMethods$`Outside temperature`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Outside temperature")
@@ -395,7 +422,7 @@ funnel(rmaObjectsMethods$`Subjective warmth judgment as DV`[[1]], level=c(90, 95
 funnelMethod <- recordPlot()
 
 #'### Forest plots
-par(mar=c(4,4,1,2), mfrow=c(3, 2))
+par(mfrow = c(1,2))
 data %>% filter(physicalTemperatureManipulation_reconcil == 1 & useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = result)
 title("Physical temperature manipulation")
 addpoly(rmaObjectsMethods$`Physical temperature manipulation`[[1]], row = 0, mlab = "", cex = 1)
@@ -434,7 +461,7 @@ maResultsCategories <- setNames(maResultsCategories, nm = namesObjectsCategories
 
 #'### Meta-analysis results
 #'
-#' Brief results
+#'#### Brief results
 maResultsCategories %>% map(maResultsTable, bias = F) %>% rbind.data.frame() %>% t() %>% noquote()
 #'#### Emotion
 maResultsCategories$Emotion
@@ -478,7 +505,7 @@ biasCategories$`Cognitive processes`
 biasCategories$`Economic decision-making`
 
 #'### Contour enhanced funnel plots
-par(mfrow=c(2,2), mar=c(4,4,0,4))
+par(mfrow = c(1,2))
 funnel(rmaObjectsCategories$Emotion[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20,yaxis = "sei", xlab = "Emotion", ylim = c(0, 0.51), xlim = c(-1, 1.7))
 funnel(rmaObjectsCategories$Interpersonal[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Interpersonal", ylim = c(0, 0.51), xlim = c(-1, 1.7))
 funnel(rmaObjectsCategories$`Person perception`[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Person perception", ylim = c(0, 0.51), xlim = c(-1, 1.7))
@@ -490,7 +517,7 @@ funnel(rmaObjectsCategories$`Economic decision-making`[[1]], level=c(90, 95, 99)
 categoriesFunnel <- recordPlot()
 
 #'### Forest plots
-par(mfrow=c(2,2), mar=c(4,4,0,4))
+par(mfrow = c(1,2))
 datEmotion %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
 title("Emotion", cex.main = 1)
 addpoly(rmaObjectsCategories$Emotion[[1]], row = 0, mlab = "", cex = 1, annotate = F)
@@ -515,7 +542,6 @@ addpoly(rmaObjectsCategories$`Cognitive processes`[[1]], row = 0, mlab = "", cex
 datCognProc %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(vi), slab = result)
 title("Economic decision-making", cex.main = 1)
 addpoly(rmaObjectsCategories$`Economic decision-making`[[1]], row = 0, mlab = "", cex = 1, annotate = F)
-#dev.off()
 
 # Moderator/sensitivity analyses ------------------------------------------
 
@@ -606,15 +632,19 @@ resultsRct$`Non-randomized`
 #'#### Randomized
 resultsRct$Randomized
 
-#'#### F-test of equality of variances
+#'### F-test of equality of variances
 #'
-#' Mean vi for non-randomized designs
+#'#### Mean vi for non-randomized designs
 viNonRnd <- mean(datNonRnd$vi, na.rm = T)
+viNonRnd
 dfNonRnD <- datNonRnd %>% filter(!is.na(vi) & !is.na(rct)) %>% nrow() - 1
-#' Mean vi for randomized designs
+#'#### Mean vi for randomized designs
 viRnD <-  mean(datRnd$vi, na.rm = T)
+viRnD
 dfRnD <- datRnd %>% filter(!is.na(vi) & !is.na(rct)) %>% nrow() - 1
-#' F-test
+#'#### F-statistics
+viNonRnd/viRnD
+#'#### F-test p-value
 2 * (1 - pf(viNonRnd/viRnD, df1 = dfNonRnD, df2 = dfRnD, lower.tail = FALSE))
 
 #'## Comparing effects based on student and non-student samples
@@ -628,7 +658,7 @@ modStudents
 #' Linear mixed-effects model. Taking into effect clustering of ESs due to originating from the same study. Using square root of variance to make the distribution normal.
 LMEpubYear <- summary(lmer(scale(sqrt(vi)) ~ scale(h5indexGSJournalMarch2016) + scale(publicationYear) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
 LMEpubYear
-#' Comment: all the variables were centered for easier interpretation of model coefficients. See the negative beta for Publication Year. The higher the publication year, the lower the variance (better precision), controlling for H5.
+#' Comment: all the variables were centered for easier interpretation of model coefficients. See the negative beta for Publication Year. The more recent a publication, the lower the variance (better precision), controlling for H5.
 #' 
 
 #'### Scatterplot year <-> precision
@@ -642,8 +672,9 @@ yearPrecisionScatter <- data %>% filter(useMA == 1) %>%  ggplot(aes(publicationY
   ylab("Precision") +
   theme_bw() +
   theme(legend.position = "none")
-yearPrecisionScatter <- recordPlot()
 yearPrecisionScatter
+yearPrecisionScatter <- recordPlot()
+
 
 #'## Citations
 #'
@@ -662,8 +693,9 @@ citationsPrecisionScatter <- data %>% filter(useMA == 1) %>% ggplot(aes(log(cita
   ylab("Precision") +
   theme_bw() +
   theme(legend.position = "none")
-yearPrecisionScatter <- recordPlot()
 citationsPrecisionScatter
+yearPrecisionScatter <- recordPlot()
+
 
 #'## H5 index
 #'
@@ -682,8 +714,9 @@ h5PrecisionScatter <- data %>% filter(useMA == 1) %>% ggplot(aes(h5indexGSJourna
   ylab("Precision") +
   theme_bw() +
   theme(legend.position = "none")
-h5PrecisionScatter <- recordPlot()
 h5PrecisionScatter
+h5PrecisionScatter <- recordPlot()
+
 
 #'## Decline effect
 #'
@@ -702,8 +735,8 @@ LMEcitationsYiVi <- summary(lmer(rConv ~ scale(publicationYear) + scale(h5indexG
 pCurveInteractions <- data %>% filter(moderatedEffect == 1) %>% pcurvePerm(.)
 pCurveInteractions
 
-#'## P-curve and funnel plots
-par(mar=c(4,4,1,2), mfrow=c(1,2))
+#'## P-curve and contour-enhanced funnel plots
+par(mfrow = c(1,1))
 quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
 data %>% filter(moderatedEffect == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 #'# Counts
@@ -711,9 +744,7 @@ data %>% filter(moderatedEffect == 1) %$% funnel(yi, vi, level=c(90, 95, 99), sh
 #' Simple counts:
 #'  1.	How often did authors test for moderation by attachment? 
 table(dat$moderationAttachment)
-#'  2. How often did authors use which attachment measure?
-table(dat$attachmentMeasure)
-#'  3. Via validated tests: How often was tested for:
+#'  2. Via validated tests: How often was tested for:
 #' a.	Independence of awareness
 table(dat$vTestsAwareness)
 #' b.	Lack of intention
@@ -722,7 +753,7 @@ table(dat$vLackIntention)
 table(dat$vEfficiencyBehavior)
 #' d.	Lack of control of behavior
 table(dat$vLackControl)
-#' 4.	Via non-validated tests: How often was tested for:
+#' 3.	Via non-validated tests: How often was tested for:
 #' a.	Independence of awareness
 table(dat$nvTestsAwareness)/nrow(dat)
 dat %>% filter(nvTestsAwareness == 1) %$% length(unique(.$study))
@@ -732,43 +763,39 @@ table(dat$nvLackIntention)
 table(dat$nvEfficiencyBehavior)
 #' d.	Lack of control of behavior
 table(dat$nvLackControl)
-#' 5. Moderation by measures assessing attachment other than by self-disclosure of emotions 
-table(dat$socialThermoregulationAttachment)
-#' 6.	Whether researchers tested for innateness
+#' 4.	Whether researchers tested for innateness
 table(dat$testsInnateness)
-#' 7.	Has skin color/ethnicity been reported?
-table(dat$ethnicityReported)
-#' 8.	Skin temperature location
+#' 5.	Skin temperature location
 table(dat$skinLocation)
-#' 9.	Population type
+#' 6.	Population type
 table(dat$sampleType)
-#' 10.  Control group type (1 = active controls)
+#' 7.  Control group type (1 = active controls)
 table(dat$activePassiveControl)
-
-#' 11. In how many countries the studies were conducted and what their mean distance was from the equator 
+#' 8. In how many countries the studies were conducted and what their mean distance was from the equator 
 unique(dat$country)
-#' Number of independent studies
+#' 9. Number of independent studies
 dat %>% filter(country == "USA") %$% length(unique(.$study))
-#' Number of papers
+#' 10. Number of papers
 dat %>% filter(country == "USA") %$% length(unique(.$paperID))
-#' Lattitude
+#' 11. Lattitude
 c("Lattitude mean" = mean(dat$latitudeUniversity, na.rm = T), "Lattitude SD" = sd(dat$latitudeUniversity, na.rm = T),
   "Min" = min(dat$latitudeUniversity, na.rm = T), "Max" = max(dat$latitudeUniversity, na.rm = T))
 
 #'# Further sensitivity analyses
 #'
-#'## Different step function for the 3PSM
-set.seed(1)
-rmaUniOverall <- rma(yi, vi, data = data[!duplicated.random(data$study) & data$useMA == 1,]) 
+#'## Different step functions for the 3PSM
+# Steps and delta parameters can be adjusted if a different selection process is assumed. 
+# Please note that steps vector represents one-tailed p-values.
 stepsDelta <- data.frame(
   steps =     c(.0025, .005, .0125, .025, .05, .10, .25, .50, 1),
   deltaModerate = c(1, 0.99, 0.97, 0.95, 0.80, 0.60, 0.50, 0.50, 0.50),
   deltaSevere =   c(1, 0.99, 0.97, 0.95, 0.65, 0.40, 0.25, 0.25, 0.25),
   deltaExtreme =  c(1, 0.98, 0.95, 0.90, 0.50, 0.20, 0.10, 0.10, 0.10))
 
-# apply step function model with a priori chosen selection weights
-
-vw2005overall <- lapply(stepsDelta[-1], function(delta) selmodel(rmaUniOverall, type = "stepfun", steps = stepsDelta$steps, delta = delta, alternative = "greater"))
+# Apply the Vevea & Woods step function model using a priori defined selection weights
+set.seed(1)
+stepsDelta
+vw2005overall <- lapply(stepsDelta[-1], function(delta) suppressWarnings(selectionModel(data[data$useMA == 1,], fallback = TRUE, steps = stepsDelta$steps, deltas = delta, nIteration = nIterationVWsensitivity)))
 vw2005overall
 
 # # Excluding effects due to inconsistent means or SDs
@@ -782,4 +809,17 @@ vw2005overall
 # }
 # consIncons <- setNames(consIncons, nm = namesObjects)
 # consIncons
+
+### Quick outlier simulation (for footnote 8)
+# Distribution of effect sizes
+# There is a normal distribution that has a near-perfect match to the reported distribution by Richard et al., 2003: ES ~ 𝛮(0, .55) (from: https://gist.github.com/nicebread/36346c00ff5c876ec7a6)
+# set.seed(123)
+# kES <- 1e8
+# x <- rnorm(kES, mean = 0, sd = .55)
+# Histogram - distribution of ES ~ 𝛮(0, .55)
+# hist(x[x > 0], breaks = 1000, freq = F, xlab = "Cohen's d ES", main = "Reference group of social psych ESs",xlim = c(0,3.5))
+# abline(v = 3.23, col = "red", lwd = 3)
+# Note. The red line represents the highly deviant ES of 3.23.
+# The cummulative probability of ES.
+# as.numeric(table(x > 3.23)[2])/kES # for 3.23
 

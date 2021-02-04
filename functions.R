@@ -107,7 +107,7 @@ pcurvePerm <- function(data, esEstimate = FALSE, plot = FALSE, nIterations = nIt
 
 # Multiple-parameter selection models -------------------------------------
 # 4/3-parameter selection model (4PSM/3PSM)
-selectionModel <- function(data, minNoPvals = minPvalues, nIteration = nIterations, fallback = FALSE){
+selectionModel <- function(data, minNoPvals = minPvalues, nIteration = nIterations, fallback = FALSE, steps = c(.025, 1), deltas = NA){
   data <- data %>% filter(useMA == 1)
   resultSM <- matrix(ncol = 8, nrow = nIteration)
   set.seed(1)
@@ -116,8 +116,8 @@ selectionModel <- function(data, minNoPvals = minPvalues, nIteration = nIteratio
     res <- rma(yi, vi, data = mydat)
     # if <= min.pvalues p-values in an interval: return NULL
     pTable <- table(cut(mydat$p, breaks = c(0, .05, 0.5, 1)))
-    if(fallback == TRUE | any(pTable < minNoPvals)){
-      threeFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, 1), alternative = "greater"),
+    if(fallback == TRUE | any(pTable < minNoPvals) | !anyNA(deltas)){
+      threeFit <- tryCatch(selmodel(res, type = "stepfun", steps = steps, delta = deltas, alternative = "greater"),
                            error = function(e) NULL)
       threeOut <- if(is.null(threeFit)){
         next
@@ -142,6 +142,33 @@ selectionModel <- function(data, minNoPvals = minPvalues, nIteration = nIteratio
   resultSM <<- resultSM
   resultSM
 }
+
+# 
+# selectionModelFullOutput <- function(data, minNoPvals = minPvalues, nIteration = nIterations){
+#   data <- data %>% filter(useMA == 1)
+#   resultSM <- list(NA)
+#   set.seed(1)
+#   for(i in 1:nIteration){
+#     mydat <<- data[!duplicated.random(data$study) & data$focalVariable == 1,]
+#     res <- rma(yi, vi, data = mydat)
+# 
+#     threeFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, 1), alternative = "greater"),
+#                            error = function(e) NULL)
+#     threeOut <- if(is.null(threeFit)){
+#         next
+#       } else {
+#         threeFit
+#       }
+#       out <- threeOut
+#     
+#     resultSM[[i]] <- out  
+#   }
+#   resultSM %>% map(~.$beta) %>% unlist() %>% median()
+#   rlist::list.search(resultSM, identical(.$beta == "0.1900919))
+#   resultSM <- resultSM %>% data.frame() %>% na.omit() %>% arrange(est) %>% slice(ceiling(n()/2)) %>% unlist()
+#   resultSM <<- resultSM
+#   resultSM
+# }
 
 # PET-PEESE ---------------------------------------------------------------
 
