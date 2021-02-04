@@ -161,7 +161,8 @@ if(contrAssimConceptualization == 1){
   data$effectCompPriming <- data$contrastAssimilation
   paste("The compensatory vs priming effects conceptualized by the actual direction of the effect as contrast vs. assimilation")
 } else {
-  paste("The compensatory vs priming effects conceptualized by the focus of the study")
+  paste("The compensatory vs priming effects conceptualized by the focus of the study.
+        Please don't forget to delete the mutate(yi = abs(yi)) from the plots.")
 }
 
 # Compensatory / Priming
@@ -188,7 +189,7 @@ resultsEffType$Compensatory
 resultsEffType$Priming
 
 #'### Table 1
-resultsEffType %>% map(maResultsTable, bias = T)# %>% unlist() %>% t() %>% view()
+resultsEffType %>% map(maResultsTable, bias = T) %>% rbind.data.frame() %>% t() %>% noquote()
 
 #'## Comparison of effect types
 
@@ -354,7 +355,7 @@ maResultsMethods <- setNames(maResultsMethods, nm = namesObjectsMethods)
 #'### Meta-analysis results
 #'
 #'#' Brief results
-maResultsMethods %>% map(maResultsTable, bias = F)
+maResultsMethods %>% map(maResultsTable, bias = F) %>% rbind.data.frame() %>% t() %>% noquote()
 #'#### Physical temperature manipulation
 maResultsMethods$`Physical temperature manipulation`
 #'#### Visual/verbal temperature prime
@@ -434,7 +435,7 @@ maResultsCategories <- setNames(maResultsCategories, nm = namesObjectsCategories
 #'### Meta-analysis results
 #'
 #' Brief results
-maResultsCategories %>% map(maResultsTable, bias = F)
+maResultsCategories %>% map(maResultsTable, bias = F) %>% rbind.data.frame() %>% t() %>% noquote()
 #'#### Emotion
 maResultsCategories$Emotion
 #'#### Interpersonal
@@ -460,9 +461,6 @@ for(i in c(1,2,3,6,7,8)){
 }
 biasCategories <- setNames(biasCategories, nm = namesObjectsCategories)
 metaResultsPcurveCategories <- setNames(metaResultsPcurveCategories, nm = namesObjectsCategories)
-
-maResultsTable(biasCategories$`Economic decision-making`, metaAnalysis = F, bias = T)
-maResultsCategories %>% map(maResultsTable, bias = F)
 
 #'### Bias correction results
 #'
@@ -601,6 +599,7 @@ for(i in 1:length(rmaObjectsRct)){
   resultsRct[[i]] <- maResults(data = dataObjectsRct[[i]], rmaObject = rmaObjectsRct[[i]])
 }
 resultsRct <- setNames(resultsRct, nm = namesObjectsRct)
+resultsRct %>% map(maResultsTable, bias = T) %>% rbind.data.frame() %>% t() %>% noquote()
 
 #'#### Non-randomized
 resultsRct$`Non-randomized`
@@ -700,9 +699,13 @@ LMEcitationsYi
 LMEcitationsYiVi <- summary(lmer(rConv ~ scale(publicationYear) + scale(h5indexGSJournalMarch2016) + scale(citationsGSMarch2016) + scale(vi) + (1|study), data = data[data$useMA == 1,], REML = T))$coefficients
 
 #'# P-curve for interaction effects
-data %>% filter(moderatedEffect == 1) %>% pcurvePerm(.)
-quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
+pCurveInteractions <- data %>% filter(moderatedEffect == 1) %>% pcurvePerm(.)
+pCurveInteractions
 
+#'## P-curve and funnel plots
+par(mar=c(4,4,1,2), mfrow=c(1,2))
+quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
+data %>% filter(moderatedEffect == 1) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 #'# Counts
 #'
 #' Simple counts:
@@ -752,6 +755,21 @@ dat %>% filter(country == "USA") %$% length(unique(.$paperID))
 c("Lattitude mean" = mean(dat$latitudeUniversity, na.rm = T), "Lattitude SD" = sd(dat$latitudeUniversity, na.rm = T),
   "Min" = min(dat$latitudeUniversity, na.rm = T), "Max" = max(dat$latitudeUniversity, na.rm = T))
 
+#'# Further sensitivity analyses
+#'
+#'## Different step function for the 3PSM
+set.seed(1)
+rmaUniOverall <- rma(yi, vi, data = data[!duplicated.random(data$study) & data$useMA == 1,]) 
+stepsDelta <- data.frame(
+  steps =     c(.0025, .005, .0125, .025, .05, .10, .25, .50, 1),
+  deltaModerate = c(1, 0.99, 0.97, 0.95, 0.80, 0.60, 0.50, 0.50, 0.50),
+  deltaSevere =   c(1, 0.99, 0.97, 0.95, 0.65, 0.40, 0.25, 0.25, 0.25),
+  deltaExtreme =  c(1, 0.98, 0.95, 0.90, 0.50, 0.20, 0.10, 0.10, 0.10))
+
+# apply step function model with a priori chosen selection weights
+
+vw2005overall <- lapply(stepsDelta[-1], function(delta) selmodel(rmaUniOverall, type = "stepfun", steps = stepsDelta$steps, delta = delta, alternative = "greater"))
+vw2005overall
 
 # # Excluding effects due to inconsistent means or SDs
 # consIncons <- list(NA)
