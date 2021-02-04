@@ -36,9 +36,9 @@ side <- "right"
 test <- "one-tailed"
 
 # No of simulations for the permutation-based bias correction models and p-curve specifically
-nIterations <- 3 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
-nIterationsPcurve <- 3
-nIterationVWsensitivity <- 3 # Number of iterations for the Vevea & Woods (2005) step function model sensitivity analysis 
+nIterations <- 5000 # Set to 5 just to make code checking/running fast. For the final paper, it will be set to 5000.
+nIterationsPcurve <- 200
+nIterationVWsensitivity <- 50 # Number of iterations for the Vevea & Woods (2005) step function model sensitivity analysis 
 
 # Controls for the multiple-parameter selection models 
 
@@ -798,6 +798,7 @@ stepsDelta
 vw2005overall <- lapply(stepsDelta[-1], function(delta) suppressWarnings(selectionModel(data[data$useMA == 1,], fallback = TRUE, steps = stepsDelta$steps, deltas = delta, nIteration = nIterationVWsensitivity)))
 vw2005overall
 
+sessionInfo()
 # # Excluding effects due to inconsistent means or SDs
 # consIncons <- list(NA)
 # i <- 2 # Only for biofeedback, since there were 0 inconsistent means or SDs for mindfulness studies.
