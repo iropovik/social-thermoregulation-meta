@@ -236,41 +236,39 @@ rmaObjectEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) 
 RVEmodelEffTypeCompCov <- data %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% list("test" = coef_test(rmaObjectEffTypeCompCov, vcov = "CR2", test = "z", cluster = study), "CIs" = conf_int(rmaObjectEffTypeCompCov, vcov = "CR2", test = "z", cluster = study))
 list("Model results" = RVEmodelEffTypeCompCov, "RVE Wald test" = Wald_test(rmaObjectEffTypeCompCov, constraints = constrain_equal(1:2), vcov = "CR2"))
 
+#'## Compensatory / Priming only for warmth -> affection
+if(contrAssimConceptualization == 0){
+  # Compensatory / Priming
+  datCompensatoryUnidirectional <- datCompensatory %>% filter(sourceTargetDirectionality_reconcil == 0)
+  datPrimingUnidirectional <- datPriming %>% filter(sourceTargetDirectionality_reconcil == 0)
+  dataObjectsUnidirectional <- list("Compensatory" = datCompensatoryUnidirectional, "Priming" = datPrimingUnidirectional)
+  rmaObjectsUnidirectional <- setNames(lapply(dataObjectsUnidirectional, function(x){rmaCustom(x)}), nm = namesObjects)
+  
+  # Results
+  resultsEffTypeUnidirectional <- list(NA)
+  metaResultsPcurveUnidirectional <- list(NA)
+  for(i in 1:length(rmaObjectsUnidirectional)){
+    resultsEffTypeUnidirectional[[i]] <- maResults(data = dataObjectsUnidirectional[[i]], rmaObject = rmaObjectsUnidirectional[[i]], bias = F)
+  }
+  resultsEffTypeUnidirectional <- setNames(resultsEffTypeUnidirectional, nm = namesObjects)
+
+  #'### Compensatory, subsetting warmth -> affection
+  resultsEffTypeUnidirectional$Compensatory
+  #'### Priming, subsetting warmth -> affection
+  resultsEffTypeUnidirectional$Priming
+  #'#### Table 1 subsetting warmth -> affection
+  resultsEffTypeUnidirectional %>% map(maResultsTable, bias = F) %>% rbind.data.frame() %>% t() %>% noquote()
+ } else {
+  paste("The analysis subsetting warmth -> affection studies was not carried out")
+}
+
 # Effect type plots -------------------------------------------------------------------
 #'## Plots
 #'
-#'### Forest plots
-par(mfrow = c(1,2))
-datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
-                                                                           xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
-                                                                           subset = order(vi),        ### order by size of yi
-                                                                           slab = NA, annotate = FALSE, ### remove study labels and annotations
-                                                                           efac = 0,                  ### remove vertical bars at end of CIs
-                                                                           pch = 19,                  ### changing point symbol to filled circle
-                                                                           col = "gray40",            ### change color of points/CIs
-                                                                           psize = 1.5,                 ### increase point size
-                                                                           cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
-                                                                           lty=c("solid","blank"))  ### remove horizontal line at top of plot
-title("Compensatory", cex.main = 1)
-addpoly(rmaObjects[[1]][[1]], row = 0, mlab = "", cex = 1, annotate = F)
-
-datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
-                                                                      xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
-                                                                      subset = order(vi),        ### order by size of yi
-                                                                      slab = NA, annotate = FALSE, ### remove study labels and annotations
-                                                                      efac = 0,                  ### remove vertical bars at end of CIs
-                                                                      pch = 19,                  ### changing point symbol to filled circle
-                                                                      col = "gray40",            ### change color of points/CIs
-                                                                      psize = 3,                 ### increase point size
-                                                                      cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
-                                                                      lty=c("solid","blank"))  ### remove horizontal line at top of plot
-title("Priming", cex.main = 1)
-addpoly(rmaObjects[[2]][[1]], row = -2, mlab = "", cex = 1, annotate = F)
-
 #'### Contour-enhanced funnel plots
 par(mfrow = c(1,2))
 datCompensatory %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
-title("Compensatory", cex.main = 1)
+title("Compensation", cex.main = 1)
 
 datPriming %>% filter(useMA == 1) %>% mutate(yi = abs(yi)) %$% funnel(yi, vi, level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "Hedges' g")
 title("Priming", cex.main = 1)
@@ -278,7 +276,7 @@ title("Priming", cex.main = 1)
 
 #'### p-curve plots
 quiet(pcurveMod(metaResultsPcurve$Compensatory, effect.estimation = FALSE, plot = TRUE))
-title("Compensatory", cex.main = 1)
+title("Compensation", cex.main = 1)
 
 quiet(pcurveMod(metaResultsPcurve$Priming, effect.estimation = FALSE, plot = TRUE))
 title("Priming", cex.main = 1)
@@ -303,6 +301,35 @@ if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(ex
 } else {
   dataObjects[[2]] %>% mutate(yi = abs(yi)) %$% plot(sqrt(nTerm), yi, main="PET", xlab = "sqrt(2/n)", ylab = "Effect size", pch = 19, cex.main = 2, cex = .3, xaxs = "i")}
 abline((if(resultsEffType[[2]]$`Publication bias`$`4/3PSM`["pvalue"] < alpha & ifelse(exists("side") & side == "left", -1, 1) * resultsEffType[[2]]$`Publication bias`$`4/3PSM`["est"] > 0) {peese} else {pet}), lwd = 3, lty = 2, col = "red")
+
+#'### Forest plots for the conceptualization by the focus of the study
+par(mfrow = c(1,2))
+datCompensatory %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+                                                  xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+                                                  subset = order(vi),        ### order by size of yi
+                                                  slab = NA, annotate = FALSE, ### remove study labels and annotations
+                                                  efac = 0,                  ### remove vertical bars at end of CIs
+                                                  pch = 19,                  ### changing point symbol to filled circle
+                                                  col = "gray40",            ### change color of points/CIs
+                                                  psize = 1.5,                 ### increase point size
+                                                  cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+                                                  lty=c("solid","blank"))  ### remove horizontal line at top of plot
+title("Compensation", cex.main = 1)
+addpoly(rmaObjects[[1]][[1]], row = 0, mlab = "", cex = 1, annotate = F)
+
+datPriming %>% filter(useMA == 1) %$% forest(yi, vi, at = c(-1, -.5, 0, .5, 1, 1.5, 2, 2.5),
+                                             xlim = c(-1.5,2.5), alim = c(-1, 2.5), xlab = "Hedges' g",        ### adjust horizontal plot region limits
+                                             subset = order(vi),        ### order by size of yi
+                                             slab = NA, annotate = FALSE, ### remove study labels and annotations
+                                             efac = 0,                  ### remove vertical bars at end of CIs
+                                             pch = 19,                  ### changing point symbol to filled circle
+                                             col = "gray40",            ### change color of points/CIs
+                                             psize = 3,                 ### increase point size
+                                             cex.lab=.7, cex.axis=.7,   ### increase size of x-axis title/labels
+                                             lty=c("solid","blank"))  ### remove horizontal line at top of plot
+title("Priming", cex.main = 1)
+addpoly(rmaObjects[[2]][[1]], row = -2, mlab = "", cex = 1, annotate = F)
+
 
 # Mood ----------------------------------------------------------
 #'# Mood
@@ -669,7 +696,7 @@ yearPrecisionScatter <- data %>% filter(useMA == 1) %>%  ggplot(aes(publicationY
   geom_smooth(method = lm) +
   scale_x_continuous(breaks = 2005:2017) +
   xlab("Year of publication") +
-  ylab("Precision") +
+  ylab("Imprecision") +
   theme_bw() +
   theme(legend.position = "none")
 yearPrecisionScatter
