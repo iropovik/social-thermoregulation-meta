@@ -61,9 +61,6 @@ source("pcurvePlotOption.R")
 source("esConversion.R")
 funnel <- metafor::funnel
 
-# GRIM & GRIMMER Test -----------------------------------------------------
-# grimAndGrimmer(dat)
-
 #' **This is the supplementary analytic output for the paper Social Thermoregulation: A Meta-analysis by IJzerman et al. **
 #' 
 #' **It reports detailed results for all models reported in the paper. The analytic R script by which this html report was generated can be found on the project's OSF page at: [LINK].**
@@ -178,7 +175,7 @@ datAttachment %$% forest(yi, vi, subset = order(yi), slab = result)
 title("Moderation by prior experiences in relationships")
 addpoly(rmaAttachment[[1]], row = 0, mlab = "", cex = 1)
 
-metafor::funnel(rmaAttachment[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor moderation by prior experiences in relationships")
+funnel(rmaAttachment[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor moderation by prior experiences in relationships")
 
 #'## P-curve plot
 quiet(pcurveMod(metaResultPcurve, effect.estimation = FALSE, plot = TRUE))
@@ -345,7 +342,7 @@ datMood %>% filter(useMA == 1) %$% forest(yi, vi, subset=order(yi), slab = resul
 title("Mood")
 addpoly(rmaMood[[1]], row = 0, mlab = "", cex = 1)
 
-metafor::funnel(rmaMood[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Mood")
+funnel(rmaMood[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Mood")
 
 # Overall effect ----------------------------------------------------------
 #+ include = TRUE
@@ -376,7 +373,7 @@ overallForest <- recordPlot()
 
 par(mfrow=c(1,2))
 #'## Contour-enhanced funnel plot
-metafor::funnel(rmaOverall[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Overall effect", xlim = c(-1.4, 1.7), steps = 7, digits = c(1,2))
+funnel(rmaOverall[[1]], level=c(90, 95, 99), shade=c("white", "gray", "darkgray"), refline=0, pch = 20, yaxis = "sei", xlab = "ES\nfor Overall effect", xlim = c(-1.4, 1.7), steps = 7, digits = c(1,2))
 title("Overall effect", cex.main = 1)
 
 #'## p-curve plot
@@ -825,18 +822,36 @@ stepsDelta
 vw2005overall <- lapply(stepsDelta[-1], function(delta) suppressWarnings(selectionModel(data[data$useMA == 1,], fallback = TRUE, steps = stepsDelta$steps, deltas = delta, nIteration = nIterationVWsensitivity)))
 vw2005overall
 
+# GRIM & GRIMMER Test -----------------------------------------------------
+#'## Excluding results based on mathematically inconsistent means or SDs
+dat <- dat %>% mutate(items = ifelse(is.na(nItems), 0, nItems),
+               mean1 = mWarm,
+               mean2 = mCold,
+               mean3 = mControl,
+               sd1 = sdWarm,
+               sd2 = sdCold,
+               sd3 = sdControl,
+               n1 = nWarm,
+               n2 = nCold,
+               n3 = nControl)
+
+grim(dat)
+grimmer(dat)
+
+# Excluding effects due to inconsistent means or SD
+#' 0 = GRIM/GRIMMER consistent; 1 or 2 = number of inconsistent means/SD identified; NA = not enough information to apply GRIM or GRIMMER test
+#' 
+#' GRIM test, testing the inconsistencies in means
+table(dat$inconsistenciesCountGRIM, useNA = "always")
+#' GRIMMED test, testing the inconsistencies in SD (and means)
+table(dat$inconsistenciesCountGRIMMER, useNA = "always")
+# Meta-analysis of the overall effect after excluding results based on inconsistent means/SD
+dat %>% 
+  filter(positiveNegativeAffect != 1 & !(inconsistenciesCountGRIMMER %in% c(1, 2)) & !(inconsistenciesCountGRIM %in% c(1, 2))) %>% 
+  rmaCustom()
+
+# Record session info
 sessionInfo()
-# # Excluding effects due to inconsistent means or SDs
-# consIncons <- list(NA)
-# i <- 2 # Only for biofeedback, since there were 0 inconsistent means or SDs for mindfulness studies.
-# for(i in 1:length(dataObjects)){
-# viMatrix <- impute_covariance_matrix(dataObjects[[i]]$vi, cluster = dataObjects[[i]]$study, r = rho, smooth_vi = TRUE)
-# rmaObject <- rma.mv(yi ~ 0 + factor(as.logical(inconsistenciesCountGRIMMER)), V = viMatrix, data = dataObjects[[i]], method = "REML", random = ~ 1|study/result, sparse = TRUE)
-# RVEmodel <- conf_int(rmaObject, vcov = "CR2", test = "z", cluster = dataObjects[[i]]$study)
-# consIncons[[i]] <- list("Count of GRIM/GRIMMER inconsistencies" = table(as.logical(dataObjects[[i]]$inconsistenciesCountGRIMMER)), "Model results" = RVEmodel, "RVE Wald test" = Wald_test(rmaObject, constraints = constrain_equal(1:2), vcov = "CR2"))
-# }
-# consIncons <- setNames(consIncons, nm = namesObjects)
-# consIncons
 
 ### Quick outlier simulation (for footnote 8)
 # Distribution of effect sizes
@@ -850,4 +865,3 @@ sessionInfo()
 # Note. The red line represents the highly deviant ES of 3.23.
 # The cummulative probability of ES.
 # as.numeric(table(x > 3.23)[2])/kES # for 3.23
-

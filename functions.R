@@ -143,33 +143,6 @@ selectionModel <- function(data, minNoPvals = minPvalues, nIteration = nIteratio
   resultSM
 }
 
-# 
-# selectionModelFullOutput <- function(data, minNoPvals = minPvalues, nIteration = nIterations){
-#   data <- data %>% filter(useMA == 1)
-#   resultSM <- list(NA)
-#   set.seed(1)
-#   for(i in 1:nIteration){
-#     mydat <<- data[!duplicated.random(data$study) & data$focalVariable == 1,]
-#     res <- rma(yi, vi, data = mydat)
-# 
-#     threeFit <- tryCatch(selmodel(res, type = "stepfun", steps = c(.025, 1), alternative = "greater"),
-#                            error = function(e) NULL)
-#     threeOut <- if(is.null(threeFit)){
-#         next
-#       } else {
-#         threeFit
-#       }
-#       out <- threeOut
-#     
-#     resultSM[[i]] <- out  
-#   }
-#   resultSM %>% map(~.$beta) %>% unlist() %>% median()
-#   rlist::list.search(resultSM, identical(.$beta == "0.1900919))
-#   resultSM <- resultSM %>% data.frame() %>% na.omit() %>% arrange(est) %>% slice(ceiling(n()/2)) %>% unlist()
-#   resultSM <<- resultSM
-#   resultSM
-# }
-
 # PET-PEESE ---------------------------------------------------------------
 
 #PET-PEESE with 4/3PSM as the conditional estimator instead of PET. 
@@ -442,33 +415,42 @@ duplicated.random = function(x, incomparables = FALSE, ...)
 }
 
 # GRIM & GRIMMER Output -----------------------------------------------------
-grimAndGrimmer <- function(dat){
+grim <- function(dat){
   dat <- dat %>% mutate(items = ifelse(is.na(items), 0, items))
-  
   outGrimM1 <- NA
   outGrimM2 <- NA
+  datGRIM <- dat %>% filter(complete.cases(n1, n2, mean1, mean2, items))
+  for(i in 1:nrow(datGRIM)){
+    outGrimM1[i] <- grimTest(n = datGRIM[i,]$n1, mean = datGRIM[i,]$mean1, items = datGRIM[i,]$items, decimals = 2)
+    outGrimM2[i] <- grimTest(n = datGRIM[i,]$n2, mean = datGRIM[i,]$mean2, items = datGRIM[i,]$items, decimals = 2)
+    }
+  
+  datGRIM$outGrimM1 <- outGrimM1
+  datGRIM$outGrimM2 <- outGrimM2
+  datGRIM$inconsistenciesCountGRIM <- datGRIM %$% abs(outGrimM1 + outGrimM2 - 2)
+
+  dat <<- datGRIM %>% 
+    select(result, outGrimM1, outGrimM2, inconsistenciesCountGRIM) %>%
+    left_join(dat, ., by = "result", keep = FALSE)
+}
+
+grimmer <- function(dat){
+  dat <- dat %>% mutate(items = ifelse(is.na(items), 0, items))
   outGrimmerSD1 <- NA
   outGrimmerSD2 <- NA
   datGRIM <- dat %>% filter(complete.cases(n1, n2, mean1, mean2, sd1, sd2, items))
   for(i in 1:nrow(datGRIM)){
-    outGrimM1[i] <- grimTest(n = datGRIM[i,]$n1, mean = datGRIM[i,]$mean1, items = datGRIM[i,]$items, decimals = 2)
-    outGrimM2[i] <- grimTest(n = datGRIM[i,]$n2, mean = datGRIM[i,]$mean2, items = datGRIM[i,]$items, decimals = 2)
     outGrimmerSD1[i] <- grimmerTest(n = datGRIM[i,]$n1, mean = datGRIM[i,]$mean1, SD = datGRIM[i,]$sd1, items = datGRIM[i,]$items, decimals_mean = 2, decimals_SD = 2)
     outGrimmerSD2[i] <- grimmerTest(n = datGRIM[i,]$n2, mean = datGRIM[i,]$mean2, SD = datGRIM[i,]$sd2, items = datGRIM[i,]$items, decimals_mean = 2, decimals_SD = 2)
   }
-  
-  datGRIM$outGrimM1 <- outGrimM1
-  datGRIM$outGrimM2 <- outGrimM2
   datGRIM$outGrimmerSD1 <- outGrimmerSD1
   datGRIM$outGrimmerSD2 <- outGrimmerSD2
-  datGRIM$inconsistenciesCountGRIM <- datGRIM %$% abs(outGrimM1 + outGrimM2 - 2)
   datGRIM$inconsistenciesCountGRIMMER <- datGRIM %$% abs(outGrimmerSD1 + outGrimmerSD2 - 2)
   
   dat <<- datGRIM %>% 
-    select(result, outGrimM1, outGrimM2, outGrimmerSD1, outGrimmerSD2, inconsistenciesCountGRIM, inconsistenciesCountGRIMMER) %>%
+    select(result, outGrimmerSD1, outGrimmerSD2, inconsistenciesCountGRIMMER) %>%
     left_join(dat, ., by = "result", keep = FALSE)
 }
-
 # General Grim Test -------------------------------------------------------
 
 # Code adapted from https://osf.io/scpbz/ , by Nick Brown and 
